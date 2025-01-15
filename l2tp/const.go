@@ -1,7 +1,7 @@
 package l2tp
 
 import (
-	"github.com/katalix/go-l2tp/internal/nll2tp"
+	"go-l2tp-mobile/internal/nll2tp"
 	"time"
 )
 
