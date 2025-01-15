@@ -56,6 +56,10 @@ func (qt *quiescentTunnel) Close() {
 	}
 }
 
+func (qt *quiescentTunnel) ControlPlaneFd() int {
+	return qt.cp.fd
+}
+
 func (qt *quiescentTunnel) close() {
 	if qt != nil {
 		qt.baseTunnel.closeAllSessions()

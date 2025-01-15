@@ -95,6 +95,10 @@ func (dt *dynamicTunnel) Close() {
 	}
 }
 
+func (dt *dynamicTunnel) ControlPlaneFd() int {
+	return dt.cp.fd
+}
+
 func (dt *dynamicTunnel) closeAllSessions() {
 	// In order to prevent any concurrently executing sessions from
 	// blocking in a channel send when trying to transmit control
@@ -625,7 +629,11 @@ func newDynamicTunnel(name string, parent *Context, sal, sap unix.Sockaddr, cfg 
 		},
 	}
 
-	dt.cp, err = newL2tpControlPlane(sal, sap)
+	if parent.userMode {
+		dt.cp, err = newL2tpControlPlaneWithoutFile(sal, sap)
+	} else {
+		dt.cp, err = newL2tpControlPlane(sal, sap)
+	}
 	if err != nil {
 		dt.Close()
 		return nil, err

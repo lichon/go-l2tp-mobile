@@ -143,3 +143,38 @@ func newL2tpControlPlane(localAddr, remoteAddr unix.Sockaddr) (*controlPlane, er
 		connected: false,
 	}, nil
 }
+
+func newL2tpControlPlaneWithoutFile(localAddr, remoteAddr unix.Sockaddr) (*controlPlane, error) {
+	var family, protocol int
+
+	switch localAddr.(type) {
+	case *unix.SockaddrInet4:
+		family = unix.AF_INET
+		protocol = unix.IPPROTO_UDP
+	case *unix.SockaddrInet6:
+		family = unix.AF_INET6
+		protocol = unix.IPPROTO_UDP
+	case *unix.SockaddrL2TPIP:
+		family = unix.AF_INET
+		protocol = unix.IPPROTO_L2TP
+	case *unix.SockaddrL2TPIP6:
+		family = unix.AF_INET6
+		protocol = unix.IPPROTO_L2TP
+	default:
+		return nil, fmt.Errorf("unexpected address type %T", localAddr)
+	}
+
+	fd, err := tunnelSocket(family, protocol)
+	if err != nil {
+		return nil, err
+	}
+
+	return &controlPlane{
+		local:     localAddr,
+		remote:    remoteAddr,
+		fd:        fd,
+		file:      nil,
+		rc:        nil,
+		connected: false,
+	}, nil
+}

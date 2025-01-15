@@ -15,6 +15,7 @@ import (
 // Context is a container for a collection of L2TP tunnels and
 // their sessions.
 type Context struct {
+	userMode      bool
 	logger        log.Logger
 	tunnelsByName map[string]tunnel
 	tunnelsByID   map[ControlConnID]tunnel
@@ -37,6 +38,11 @@ type Tunnel interface {
 	//
 	// Any sessions instantiated inside the tunnel are removed.
 	Close()
+
+	// Return the file descriptor for the tunnel control plane.
+	//
+	// default is 0
+	ControlPlaneFd() int
 }
 
 type tunnel interface {
@@ -231,6 +237,14 @@ func NewContext(dataPlane DataPlane, logger log.Logger) (*Context, error) {
 	}, nil
 }
 
+func NewUserContext(dataPlane DataPlane, logger log.Logger) (*Context, error) {
+	ret, err := NewContext(dataPlane, logger)
+	if err != nil {
+		ret.userMode = true
+	}
+	return ret, err
+}
+
 // NewDynamicTunnel creates a new dynamic L2TP.
 //
 // A dynamic L2TP tunnel runs a full RFC2661 (L2TPv2) or
@@ -238,7 +252,6 @@ func NewContext(dataPlane DataPlane, logger log.Logger) (*Context, error) {
 // for tunnel instantiation and management.
 //
 // The name provided must be unique in the Context.
-//
 func (ctx *Context) NewDynamicTunnel(name string, cfg *TunnelConfig) (tunl Tunnel, err error) {
 
 	var sal, sap unix.Sockaddr

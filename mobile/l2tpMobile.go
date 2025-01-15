@@ -7,12 +7,14 @@ import (
 	"go-l2tp-mobile/config"
 	"go-l2tp-mobile/l2tp"
 
+	"github.com/go-kit/kit/log"
 	_ "golang.org/x/mobile/bind"
 )
 
 type application struct {
-	cfg     *config.Config
-	l2tpCtx *l2tp.Context
+	cfg        *config.Config
+	l2tpCtx    *l2tp.Context
+	vpnService VpnService
 }
 
 type LogWriter interface {
@@ -34,12 +36,14 @@ type PacketFlow interface {
 
 var l2tpApp *application
 
-func newApplication(cfg *config.Config) (app *application, err error) {
+func newApplication(cfg *config.Config, logWriter LogWriter, vpnService VpnService) (app *application, err error) {
 	app = &application{
-		cfg: cfg,
+		cfg:        cfg,
+		vpnService: vpnService,
 	}
 
-	app.l2tpCtx, err = l2tp.NewContext(nil, nil)
+	logger := log.NewLogfmtLogger(logWriter)
+	app.l2tpCtx, err = l2tp.NewUserContext(nil, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create L2TP context: %v", err)
 	}
@@ -62,6 +66,11 @@ func (app *application) start() (err error) {
 		tunl, err := app.l2tpCtx.NewDynamicTunnel(tcfg.Name, tcfg.Config)
 		if err != nil {
 			return err
+		}
+
+		// Protect the tunnel's file descriptor
+		if !app.vpnService.Protect(tunl.ControlPlaneFd()) {
+			return errors.New("failed to protect tunnel file descriptor")
 		}
 
 		for _, scfg := range tcfg.Sessions {
@@ -101,13 +110,14 @@ func (app *application) HandleEvent(event interface{}) {
 func StartL2tp(
 	packetFlow PacketFlow,
 	vpnService VpnService,
+	logWriter LogWriter,
 	configBytes []byte) error {
 	if packetFlow != nil {
 		l2tpConfig, err := config.LoadString(string(configBytes))
 		if err != nil {
 			return errors.New(fmt.Sprintf("failed to parse config: %v", err))
 		}
-		l2tpApp, err = newApplication(l2tpConfig)
+		l2tpApp, err = newApplication(l2tpConfig, logWriter, vpnService)
 		if err != nil {
 			return errors.New(fmt.Sprintf("failed to create L2TP context: %v", err))
 		}
