@@ -18,14 +18,14 @@ func (sw *sockWrapper) Control(fn func(fd uintptr)) error {
 }
 
 func (sw *sockWrapper) Read(fn func(fd uintptr) (done bool)) error {
-	return sw.rawControl(fn, unix.FIONREAD)
+	return sw.rawControl(fn)
 }
 
 func (sw *sockWrapper) Write(fn func(fd uintptr) (done bool)) error {
-	return sw.rawControl(fn, unix.FIONWRITE)
+	return sw.rawControl(fn)
 }
 
-func (sw *sockWrapper) rawControl(fn func(fd uintptr) (done bool), ioctl int) error {
+func (sw *sockWrapper) rawControl(fn func(fd uintptr) (done bool)) error {
 	for {
 		done := fn(uintptr(sw.fd))
 		if done {
