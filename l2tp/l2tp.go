@@ -41,7 +41,7 @@ type Tunnel interface {
 
 	// Return the file descriptor for the tunnel control plane.
 	//
-	// default is 0
+	// default is -1
 	ControlPlaneFd() int
 }
 
@@ -239,7 +239,7 @@ func NewContext(dataPlane DataPlane, logger log.Logger) (*Context, error) {
 
 func NewUserContext(dataPlane DataPlane, logger log.Logger) (*Context, error) {
 	ret, err := NewContext(dataPlane, logger)
-	if err != nil {
+	if err == nil {
 		ret.userMode = true
 	}
 	return ret, err

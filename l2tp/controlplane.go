@@ -8,6 +8,32 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+type sockWrapper struct {
+	local, remote unix.Sockaddr
+	fd            int
+}
+
+func (sw *sockWrapper) Control(fn func(fd uintptr)) error {
+	return nil
+}
+
+func (sw *sockWrapper) Read(fn func(fd uintptr) (done bool)) error {
+	return sw.rawControl(fn, unix.FIONREAD)
+}
+
+func (sw *sockWrapper) Write(fn func(fd uintptr) (done bool)) error {
+	return sw.rawControl(fn, unix.FIONWRITE)
+}
+
+func (sw *sockWrapper) rawControl(fn func(fd uintptr) (done bool), ioctl int) error {
+	for {
+		done := fn(uintptr(sw.fd))
+		if done {
+			return nil
+		}
+	}
+}
+
 type controlPlane struct {
 	local, remote unix.Sockaddr
 	fd            int
@@ -28,7 +54,7 @@ func (cp *controlPlane) recvFrom(p []byte) (n int, addr unix.Sockaddr, err error
 }
 
 func (cp *controlPlane) write(b []byte) (n int, err error) {
-	if cp.connected {
+	if cp.connected && cp.file != nil {
 		return cp.file.Write(b)
 	}
 	return cp.writeTo(b, cp.remote)
@@ -168,13 +194,14 @@ func newL2tpControlPlaneWithoutFile(localAddr, remoteAddr unix.Sockaddr) (*contr
 	if err != nil {
 		return nil, err
 	}
+	sw := &sockWrapper{fd: fd, local: localAddr, remote: remoteAddr}
 
 	return &controlPlane{
 		local:     localAddr,
 		remote:    remoteAddr,
 		fd:        fd,
 		file:      nil,
-		rc:        nil,
+		rc:        sw,
 		connected: false,
 	}, nil
 }

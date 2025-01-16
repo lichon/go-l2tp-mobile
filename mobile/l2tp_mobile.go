@@ -128,7 +128,7 @@ func StartL2tp(
 }
 
 // StopL2tp
-func StopV2tp() {
+func StopL2tp() {
 	if l2tpApp != nil {
 		l2tpApp.stop()
 	}

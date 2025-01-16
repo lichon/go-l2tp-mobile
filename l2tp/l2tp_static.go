@@ -74,7 +74,7 @@ func (st *staticTunnel) Close() {
 }
 
 func (dt *staticTunnel) ControlPlaneFd() int {
-	return 0
+	return -1
 }
 
 func newStaticTunnel(name string, parent *Context, sal, sap unix.Sockaddr, cfg *TunnelConfig) (st *staticTunnel, err error) {
