@@ -9,8 +9,7 @@ import (
 )
 
 type sockWrapper struct {
-	local, remote unix.Sockaddr
-	fd            int
+	fd int
 }
 
 func (sw *sockWrapper) Control(fn func(fd uintptr)) error {
@@ -194,7 +193,7 @@ func newL2tpControlPlaneWithoutFile(localAddr, remoteAddr unix.Sockaddr) (*contr
 	if err != nil {
 		return nil, err
 	}
-	sw := &sockWrapper{fd: fd, local: localAddr, remote: remoteAddr}
+	sw := &sockWrapper{fd: fd}
 
 	return &controlPlane{
 		local:     localAddr,
