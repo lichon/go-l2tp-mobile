@@ -518,6 +518,10 @@ func (dt *dynamicTunnel) fsmActIgnoreMsg(args []interface{}) {
 		"message_type", msg.getType())
 }
 
+func (dt *dynamicTunnel) fsmActStartPAP(args []interface{}) {
+	// TODO: implement PAP
+}
+
 // Closes all tunnel resources and unlinks child sessions.
 // The tunnel goroutine will terminate after this call completes
 // because the transport recv channel will have been closed.
@@ -614,7 +618,8 @@ func newDynamicTunnel(name string, parent *Context, sal, sap unix.Sockaddr, cfg 
 			{from: "established", events: []string{"stopccn"}, cb: dt.fsmActOnStopccn, to: "dead"},
 			{from: "established", events: []string{"newsession"}, cb: dt.fsmActStartSession, to: "established"},
 			{from: "established", events: []string{"sessionmsg"}, cb: dt.fsmActForwardSessionMsg, to: "established"},
-			{from: "established", events: []string{"sli", "wen"}, cb: dt.fsmActIgnoreMsg, to: "established"},
+			{from: "established", events: []string{"sli"}, cb: dt.fsmActStartPAP, to: "established"},
+			{from: "established", events: []string{"wen"}, cb: dt.fsmActIgnoreMsg, to: "established"},
 			{
 				from: "established",
 				events: []string{
