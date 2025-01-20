@@ -594,13 +594,7 @@ func parseMessageBuffer(b []byte) (messages []controlMessage, err error) {
 		if 0 == h.FlagsVer&0x8000 {
 			// return nil, fmt.Errorf("ignore data packet passed up from the dataplane")
 			// now we support v2 data packet
-			// TODO support dataMessage in return
-			var msg *v2DataMessage
-			if msg, err = bytesToV2DataMsg(b[cursor : cursor+int64(h.Len)]); err != nil {
-				return nil, err
-			}
-			messages = append(messages, msg)
-			return messages, nil
+			return parseV2DataMessage(b)
 		}
 
 		// Throw out malformed packets
@@ -873,6 +867,14 @@ func newV3ControlMessage(ccid ControlConnID, avps []avp) (msg *v3ControlMessage,
 	}, nil
 }
 
+func parseV2DataMessage(b []byte) (messages []controlMessage, err error) {
+	var msg *v2DataMessage
+	if msg, err = bytesToV2DataMsg(b); err != nil {
+		return nil, err
+	}
+	return []controlMessage{msg}, nil
+}
+
 // L2TPv2 and L2TPv3 headers have these fields in common
 type l2tpV2DataHeader struct {
 	FlagsVer uint16
@@ -936,8 +938,8 @@ func (m *v2DataMessage) toBytes() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (m *v2DataMessage) valid() error {
-	// TODO maybe check the ppp content
+func (m *v2DataMessage) validate() error {
+	// Data messages do not have AVPs, so no validation is needed
 	return nil
 }
 
