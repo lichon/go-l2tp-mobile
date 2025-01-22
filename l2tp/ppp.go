@@ -18,7 +18,7 @@ const (
 const (
 	pppAddress      byte            = 0xFF
 	pppControl      byte            = 0x03
-	pppProtocolIP4  pppProtocolType = 0x0021
+	pppProtocolIPV4 pppProtocolType = 0x0021
 	pppProtocolLCP  pppProtocolType = 0xC021
 	pppProtocolPAP  pppProtocolType = 0x0023
 	pppProtocolPPCP pppProtocolType = 0x8021
@@ -72,6 +72,19 @@ const (
 	pppIP4CodeDiscardRequest   byte = 0x0B
 )
 
+const (
+	pppIP4OptionIPCompression byte = 0x002D
+	pppIP4OptionIPAddress     byte = 0x03
+	pppIP4OptionPrimaryDNS    byte = 0x81
+	pppIP4OptionSecondaryDNS  byte = 0x83
+)
+
+const (
+	pppLCPOptionMRU          byte = 0x01
+	pppLCPOptionAuthProtocol byte = 0x03
+	pppLCPOptionMagicNumber  byte = 0x05
+)
+
 // PPP header
 type pppHeader struct {
 	address  byte
@@ -95,6 +108,45 @@ type ppp struct {
 // getType returns the protocol type for the PPP frame.
 func (p *ppp) getProtocol() pppProtocolType {
 	return p.header.protocol
+}
+
+func (p *ppp) getPayload() []byte {
+	return p.payload.data
+}
+
+func (p *ppp) isProtocolType(pt pppProtocolType) bool {
+	return p.header.protocol == pt
+}
+
+func (p *ppp) validate() error {
+	if p.header.address == pppAddress && p.header.control == pppControl {
+		return nil
+	}
+	return errors.New("invalid PPP header")
+}
+
+func (payload *pppPayload) getOptions() []pppOption {
+	opts := make([]pppOption, 0)
+	buf := bytes.NewBuffer(payload.data)
+	for buf.Len() > 0 {
+		var opt pppOption
+		err := binary.Read(buf, binary.BigEndian, &opt)
+		if err != nil {
+			return nil
+		}
+		opts = append(opts, opt)
+	}
+	return opts
+}
+
+func (payload *pppPayload) getOptionValue(optType byte) []byte {
+	opts := payload.getOptions()
+	for _, opt := range opts {
+		if opt.type_ == optType {
+			return opt.value
+		}
+	}
+	return nil
 }
 
 func parsePPPBuffer(b []byte) (p *ppp, err error) {
@@ -171,17 +223,17 @@ func newPPPLCPReq(opts []pppOption) *ppp {
 	)
 }
 
-func newPPPLCPAck(lcpId byte, opts []pppOption) *ppp {
+func newPPPLCPAck(reqId byte, opts []pppOption) *ppp {
 	return newPPP(
 		pppProtocolLCP,
-		newPPPPayload(pppLCPCodeConfigureAck, lcpId, encodePPPOptions(opts)),
+		newPPPPayload(pppLCPCodeConfigureAck, reqId, encodePPPOptions(opts)),
 	)
 }
 
-func newPPPLCPRej(lcpId byte, opts []pppOption) *ppp {
+func newPPPLCPRej(reqId byte, opts []pppOption) *ppp {
 	return newPPP(
 		pppProtocolLCP,
-		newPPPPayload(pppLCPCodeConfigureReject, lcpId, encodePPPOptions(opts)),
+		newPPPPayload(pppLCPCodeConfigureReject, reqId, encodePPPOptions(opts)),
 	)
 }
 
@@ -211,4 +263,158 @@ func newPPPPapReq(peerId string, password string) *ppp {
 			password:       password,
 		}).encode()),
 	)
+}
+
+func newPPPPapAck(reqId byte) *ppp {
+	return newPPP(
+		pppProtocolPAP,
+		newPPPPayload(pppPAPCodeAuthenticateAck, reqId, []byte{}),
+	)
+}
+
+func newPPPIpcpReq(opts []pppOption) *ppp {
+	return newPPP(
+		pppProtocolPPCP,
+		newPPPPayload(pppIP4CodeConfigureRequest, getLCPId(), encodePPPOptions(opts)),
+	)
+}
+
+func newPPPIpcpAck(reqId byte, opts []pppOption) *ppp {
+	return newPPP(
+		pppProtocolPPCP,
+		newPPPPayload(pppIP4CodeConfigureAck, reqId, encodePPPOptions(opts)),
+	)
+}
+
+func newPPPIpcpRej(reqId byte, opts []pppOption) *ppp {
+	return newPPP(
+		pppProtocolPPCP,
+		newPPPPayload(pppIP4CodeConfigureReject, reqId, encodePPPOptions(opts)),
+	)
+}
+
+func newPPPIpcpNak(reqId byte, opts []pppOption) *ppp {
+	return newPPP(
+		pppProtocolPPCP,
+		newPPPPayload(pppIP4CodeConfigureNak, reqId, encodePPPOptions(opts)),
+	)
+}
+
+// L2TPv2 and L2TPv3 headers have these fields in common
+type l2tpDataHeader struct {
+	FlagsVer uint16
+	Tid      uint16
+	Sid      uint16
+}
+
+// pppDataMessage represents an data message
+type pppDataMessage struct {
+	header  l2tpDataHeader
+	payload []byte
+	ppp     *ppp
+	// implement controlMessage interface
+	controlMessage
+}
+
+func parsePPPMessage(b []byte) (messages []controlMessage, err error) {
+	var msg *pppDataMessage
+	if msg, err = bytesToDataMsg(b); err != nil {
+		return nil, err
+	}
+	msg.ppp, err = parsePPPBuffer(msg.payload)
+	return []controlMessage{msg}, err
+}
+
+func (m *pppDataMessage) protocolVersion() ProtocolVersion {
+	return ProtocolVersion(2)
+}
+
+func (m *pppDataMessage) getLen() int {
+	return int(v2DataHeaderLen + len(m.payload)) // 6 bytes for the header
+}
+
+func (m *pppDataMessage) ns() uint16 {
+	// Assuming Ns is not used in data messages, return 0
+	return 0
+}
+
+func (m *pppDataMessage) nr() uint16 {
+	// Assuming Nr is not used in data messages, return 0
+	return 0
+}
+
+func (m *pppDataMessage) getAvps() []avp {
+	// Data messages do not have AVPs, return an empty slice
+	return []avp{}
+}
+
+func (m *pppDataMessage) getType() avpMsgType {
+	// Data messages do not have a Message Type AVP, return a default value
+	return avpMsgType(0)
+}
+
+func (m *pppDataMessage) appendAvp(avp *avp) {
+	// Data messages do not support AVPs, do nothing
+}
+
+func (m *pppDataMessage) setTransportSeqNum(ns, nr uint16) {
+	// Data messages do not use transport sequence numbers, do nothing
+}
+
+func (m *pppDataMessage) toBytes() ([]byte, error) {
+	buf := new(bytes.Buffer)
+
+	if err := binary.Write(buf, binary.BigEndian, m.header); err != nil {
+		return nil, err
+	}
+
+	if err := binary.Write(buf, binary.BigEndian, m.payload); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+func (m *pppDataMessage) validate() error {
+	if m.ppp == nil {
+		return errors.New("no PPP frame present in the data message")
+	}
+	return m.ppp.validate()
+}
+
+func (m *pppDataMessage) Tid() uint16 {
+	return m.header.Tid
+}
+
+func (m *pppDataMessage) Sid() uint16 {
+	return m.header.Sid
+}
+
+func (m *pppDataMessage) Protocol() pppProtocolType {
+	return m.ppp.getProtocol()
+}
+
+func newPPPDataMessage(tid ControlConnID, sid ControlConnID, data []byte) (msg *pppDataMessage, err error) {
+	return &pppDataMessage{
+		header: l2tpDataHeader{
+			FlagsVer: 0x0002,
+			Tid:      uint16(tid),
+			Sid:      uint16(sid),
+		},
+		payload: data,
+	}, nil
+}
+
+func bytesToDataMsg(b []byte) (msg *pppDataMessage, err error) {
+	var hdr l2tpDataHeader
+
+	r := bytes.NewReader(b)
+	if err = binary.Read(r, binary.BigEndian, &hdr); err != nil {
+		return nil, err
+	}
+
+	return &pppDataMessage{
+		header:  hdr,
+		payload: b[v2DataHeaderLen:],
+	}, nil
 }

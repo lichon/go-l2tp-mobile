@@ -35,6 +35,7 @@ type dynamicTunnel struct {
 	wg          sync.WaitGroup
 	sessionTxWg sync.WaitGroup
 	fsm         fsm
+	pppFsm      fsm
 }
 
 func (dt *dynamicTunnel) NewSession(name string, cfg *SessionConfig) (sess Session, err error) {
@@ -266,6 +267,11 @@ func (dt *dynamicTunnel) handleMsg(m *recvMsg) {
 		return
 	}
 
+	if msg, ok := m.msg.(*pppDataMessage); ok {
+		dt.handlePPPMsg(msg, m.from)
+		return
+	}
+
 	switch m.msg.protocolVersion() {
 	case ProtocolVersion2:
 		msg, ok := m.msg.(*v2ControlMessage)
@@ -290,6 +296,47 @@ func (dt *dynamicTunnel) handleMsg(m *recvMsg) {
 		avpStopCCNResultCodeChannelProtocolVersionUnsupported,
 		avpErrorCode(ProtocolVersion2),
 		fmt.Sprintf("unhandled protocol version %v", m.msg.protocolVersion()))
+}
+
+func (dt *dynamicTunnel) handlePPPMsg(msg *pppDataMessage, from unix.Sockaddr) {
+
+	if msg.Tid() != uint16(dt.cfg.TunnelID) {
+		level.Error(dt.logger).Log(
+			"message", "received ppp message with the wrong TID",
+			"expected", dt.cfg.TunnelID,
+			"got", msg.Tid())
+		return
+	}
+
+	err := msg.validate()
+	if err != nil {
+		level.Error(dt.logger).Log(
+			"message", "bad ppp message",
+			"protocol", msg.Protocol(),
+			"error", err)
+		dt.handleEvent("close",
+			avpStopCCNResultCodeGeneralError,
+			avpErrorCodeBadValue,
+			fmt.Sprintf("bad %v message: %v", msg.Protocol(), err))
+	}
+
+	// Map the message to the appropriate event type.  If we haven't got
+	// an event appropriate to the incoming message close the tunnel.
+	eventMap := []struct {
+		p pppProtocolType
+		e string
+	}{
+		{pppProtocolLCP, "ppplcp"},
+		{pppProtocolIPV4, "pppipv4"},
+		{pppProtocolPAP, "ppppap"},
+		{pppProtocolPPCP, "pppipcp"},
+	}
+
+	for _, em := range eventMap {
+		if msg.Protocol() == em.p {
+			dt.handleEvent(em.e, msg, from)
+		}
+	}
 }
 
 func (dt *dynamicTunnel) handleV2Msg(msg *v2ControlMessage, from unix.Sockaddr) {
@@ -518,8 +565,8 @@ func (dt *dynamicTunnel) fsmActIgnoreMsg(args []interface{}) {
 		"message_type", msg.getType())
 }
 
-func (dt *dynamicTunnel) fsmActStartPAP(args []interface{}) {
-	// TODO: implement PAP
+func (dt *dynamicTunnel) fsmActStartPPP(args []interface{}) {
+	// TODO: implement PPP PAP
 }
 
 // Closes all tunnel resources and unlinks child sessions.
@@ -618,8 +665,7 @@ func newDynamicTunnel(name string, parent *Context, sal, sap unix.Sockaddr, cfg 
 			{from: "established", events: []string{"stopccn"}, cb: dt.fsmActOnStopccn, to: "dead"},
 			{from: "established", events: []string{"newsession"}, cb: dt.fsmActStartSession, to: "established"},
 			{from: "established", events: []string{"sessionmsg"}, cb: dt.fsmActForwardSessionMsg, to: "established"},
-			{from: "established", events: []string{"sli"}, cb: dt.fsmActStartPAP, to: "established"},
-			{from: "established", events: []string{"wen"}, cb: dt.fsmActIgnoreMsg, to: "established"},
+			{from: "established", events: []string{"sli", "wen"}, cb: dt.fsmActIgnoreMsg, to: "established"},
 			{
 				from: "established",
 				events: []string{

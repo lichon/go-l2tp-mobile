@@ -593,8 +593,8 @@ func parseMessageBuffer(b []byte) (messages []controlMessage, err error) {
 		// peer will retransmit it, so just log the issue.
 		if 0 == h.FlagsVer&0x8000 {
 			// return nil, fmt.Errorf("ignore data packet passed up from the dataplane")
-			// now we support v2 data packet
-			return parseV2DataMessage(b)
+			// now we support ppp data packet
+			return parsePPPMessage(b)
 		}
 
 		// Throw out malformed packets
@@ -864,106 +864,5 @@ func newV3ControlMessage(ccid ControlConnID, avps []avp) (msg *v3ControlMessage,
 	return &v3ControlMessage{
 		header: *newL2tpV3MessageHeader(uint32(ccid), 0, 0, avpsLengthBytes(avps)),
 		avps:   avps,
-	}, nil
-}
-
-func parseV2DataMessage(b []byte) (messages []controlMessage, err error) {
-	var msg *v2DataMessage
-	if msg, err = bytesToV2DataMsg(b); err != nil {
-		return nil, err
-	}
-	return []controlMessage{msg}, nil
-}
-
-// L2TPv2 and L2TPv3 headers have these fields in common
-type l2tpV2DataHeader struct {
-	FlagsVer uint16
-	Tid      uint16
-	Sid      uint16
-}
-
-// v2DataMessage represents an data message
-type v2DataMessage struct {
-	header  l2tpV2DataHeader
-	payload []byte
-}
-
-func (m *v2DataMessage) protocolVersion() ProtocolVersion {
-	return ProtocolVersion(2)
-}
-
-func (m *v2DataMessage) getLen() int {
-	return int(6 + len(m.payload)) // 6 bytes for the header
-}
-
-func (m *v2DataMessage) ns() uint16 {
-	// Assuming Ns is not used in data messages, return 0
-	return 0
-}
-
-func (m *v2DataMessage) nr() uint16 {
-	// Assuming Nr is not used in data messages, return 0
-	return 0
-}
-
-func (m *v2DataMessage) getAvps() []avp {
-	// Data messages do not have AVPs, return an empty slice
-	return []avp{}
-}
-
-func (m *v2DataMessage) getType() avpMsgType {
-	// Data messages do not have a Message Type AVP, return a default value
-	return avpMsgType(0)
-}
-
-func (m *v2DataMessage) appendAvp(avp *avp) {
-	// Data messages do not support AVPs, do nothing
-}
-
-func (m *v2DataMessage) setTransportSeqNum(ns, nr uint16) {
-	// Data messages do not use transport sequence numbers, do nothing
-}
-
-func (m *v2DataMessage) toBytes() ([]byte, error) {
-	buf := new(bytes.Buffer)
-
-	if err := binary.Write(buf, binary.BigEndian, m.header); err != nil {
-		return nil, err
-	}
-
-	if err := binary.Write(buf, binary.BigEndian, m.payload); err != nil {
-		return nil, err
-	}
-
-	return buf.Bytes(), nil
-}
-
-func (m *v2DataMessage) validate() error {
-	// Data messages do not have AVPs, so no validation is needed
-	return nil
-}
-
-func newDataMessage(tid ControlConnID, sid ControlConnID, data []byte) (msg *v2DataMessage, err error) {
-	return &v2DataMessage{
-		header: l2tpV2DataHeader{
-			FlagsVer: 0x0002,
-			Tid:      uint16(tid),
-			Sid:      uint16(sid),
-		},
-		payload: data,
-	}, nil
-}
-
-func bytesToV2DataMsg(b []byte) (msg *v2DataMessage, err error) {
-	var hdr l2tpV2DataHeader
-
-	r := bytes.NewReader(b)
-	if err = binary.Read(r, binary.BigEndian, &hdr); err != nil {
-		return nil, err
-	}
-
-	return &v2DataMessage{
-		header:  hdr,
-		payload: b[v2DataHeaderLen:],
 	}, nil
 }
