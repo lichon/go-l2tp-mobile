@@ -690,8 +690,8 @@ func newDynamicTunnel(name string, parent *Context, sal, sap unix.Sockaddr, cfg 
 		},
 	}
 
-	if parent.userFd > 0 {
-		dt.cp, err = newL2tpControlPlaneWithFd(sal, sap, parent.userFd)
+	if parent.userMode {
+		dt.cp, err = newL2tpControlPlaneWithoutFile(sal, sap)
 	} else {
 		dt.cp, err = newL2tpControlPlane(sal, sap)
 	}
