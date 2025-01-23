@@ -316,13 +316,16 @@ type pppDataMessage struct {
 	controlMessage
 }
 
-func parsePPPMessage(b []byte) (messages []controlMessage, err error) {
+func parsePPPMessage(b []byte) (messages []controlMessage) {
 	var msg *pppDataMessage
+	var err error
 	if msg, err = bytesToDataMsg(b); err != nil {
-		return nil, err
+		return nil
 	}
-	msg.ppp, err = parsePPPBuffer(msg.payload)
-	return []controlMessage{msg}, err
+	if msg.ppp, err = parsePPPBuffer(msg.payload); err != nil {
+		return nil
+	}
+	return []controlMessage{msg}
 }
 
 func (m *pppDataMessage) protocolVersion() ProtocolVersion {

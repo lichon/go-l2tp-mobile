@@ -122,6 +122,9 @@ type SessionDataPlane interface {
 	// Down performs the necessary actions to tear down the data plane.
 	// On successful return the dataplane should be fully destroyed.
 	Down() error
+
+	// HandleDataPacket is called to pass a data packet to the session data plane.
+	HandleDataPacket([]byte) error
 }
 
 // EventHandler is an interface for receiving L2TP-specific events.

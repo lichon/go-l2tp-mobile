@@ -43,3 +43,7 @@ func (sdp *nullSessionDataPlane) GetInterfaceName() (string, error) {
 func (tdp *nullSessionDataPlane) Down() error {
 	return nil
 }
+
+func (sdp *nullSessionDataPlane) HandleDataPacket(data []byte) error {
+	return nil
+}

@@ -592,9 +592,8 @@ func parseMessageBuffer(b []byte) (messages []controlMessage, err error) {
 		// There's not much we can do with this data except hope the
 		// peer will retransmit it, so just log the issue.
 		if 0 == h.FlagsVer&0x8000 {
-			// return nil, fmt.Errorf("ignore data packet passed up from the dataplane")
 			// now we support ppp data packet
-			return parsePPPMessage(b)
+			return parsePPPMessage(b), fmt.Errorf("data packet")
 		}
 
 		// Throw out malformed packets

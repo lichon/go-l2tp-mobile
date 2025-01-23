@@ -237,13 +237,14 @@ func (ds *dynamicSession) handlePPPMsg(msg *pppDataMessage) {
 }
 
 func (ds *dynamicSession) handleIPv4Msg(msg *pppDataMessage) {
-	if ds.dp != nil {
-		err := ds.dp.xxxx()
-		if err != nil {
-			level.Error(ds.logger).Log(
-				"message", "failed to handle IPv4 packet",
-				"error", err)
-		}
+	if ds.dp == nil {
+		return
+	}
+	err := ds.dp.HandleDataPacket(msg.payload)
+	if err != nil {
+		level.Debug(ds.logger).Log(
+			"message", "failed to handle IPv4 packet",
+			"error", err)
 	}
 }
 

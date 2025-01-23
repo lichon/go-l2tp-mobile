@@ -170,6 +170,10 @@ func (sdp *nlSessionDataPlane) Down() error {
 	return sdp.f.nlconn.DeleteSession(sdp.cfg)
 }
 
+func (sdp *nlSessionDataPlane) HandleDataPacket(data []byte) error {
+	return nil
+}
+
 func newNetlinkDataPlane() (DataPlane, error) {
 
 	nlconn, err := nll2tp.Dial()

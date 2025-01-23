@@ -270,6 +270,10 @@ func (xport *transport) receiver() {
 		// sequence number validation.
 		messages, err := xport.recvFrame(&rawMsg{b: buffer, sa: from})
 		if err != nil {
+			if strings.EqualFold(err.Error(), "data packet") {
+				xport.recvChan <- &recvMsg{msg: messages[0], from: from}
+				continue
+			}
 			// Early packet handling can fail for a variety of reasons.
 			// The most important of these is if a peer sends a mandatory
 			// AVP that we don't recognise: this MUST cause the tunnel to fail
@@ -399,7 +403,7 @@ func (xport *transport) sender() {
 func (xport *transport) recvFrame(rawMsg *rawMsg) (messages []controlMessage, err error) {
 	messages, err = parseMessageBuffer(rawMsg.b)
 	if err != nil {
-		return nil, err
+		return messages, err
 	}
 
 	ns, nr := xport.slowStart.getSequenceNumbers()
