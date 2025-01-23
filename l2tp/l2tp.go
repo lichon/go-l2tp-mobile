@@ -15,7 +15,7 @@ import (
 // Context is a container for a collection of L2TP tunnels and
 // their sessions.
 type Context struct {
-	userMode      bool
+	userFd        int
 	logger        log.Logger
 	tunnelsByName map[string]tunnel
 	tunnelsByID   map[ControlConnID]tunnel
@@ -237,10 +237,10 @@ func NewContext(dataPlane DataPlane, logger log.Logger) (*Context, error) {
 	}, nil
 }
 
-func NewUserContext(dataPlane DataPlane, logger log.Logger) (*Context, error) {
+func NewUserContext(dataPlane DataPlane, logger log.Logger, fd int) (*Context, error) {
 	ret, err := NewContext(dataPlane, logger)
 	if err == nil {
-		ret.userMode = true
+		ret.userFd = fd
 	}
 	return ret, err
 }

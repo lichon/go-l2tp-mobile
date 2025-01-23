@@ -2,9 +2,10 @@ package l2tp
 
 import (
 	"fmt"
+	"sync"
+
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
-	"sync"
 )
 
 type dynamicSession struct {
@@ -17,6 +18,7 @@ type dynamicSession struct {
 	dt          *dynamicTunnel
 	dp          SessionDataPlane
 	wg          sync.WaitGroup
+	pppRxChan   chan *pppDataMessage
 	msgRxChan   chan controlMessage
 	eventChan   chan string
 	closeChan   chan interface{}
@@ -55,6 +57,8 @@ func (ds *dynamicSession) runSession() {
 
 	for !ds.isClosed {
 		select {
+		case msg, _ := <-ds.pppRxChan:
+			ds.handlePPPMsg(msg)
 		case msg, ok := <-ds.msgRxChan:
 			if !ok {
 				ds.fsmActClose(nil)
@@ -209,6 +213,50 @@ func (ds *dynamicSession) handleMsg(msg controlMessage) {
 	level.Error(ds.logger).Log(
 		"message", "unhandled protocol version",
 		"version", msg.protocolVersion())
+}
+
+func (ds *dynamicSession) handlePPP(msg *pppDataMessage) {
+	ds.pppRxChan <- msg
+}
+
+func (ds *dynamicSession) handlePPPMsg(msg *pppDataMessage) {
+	switch msg.ppp.header.protocol {
+	case pppProtocolIPV4:
+		ds.handleIPv4Msg(msg)
+		break
+	case pppProtocolLCP:
+		ds.handleLcpMsg(msg)
+		break
+	case pppProtocolIPCP:
+		ds.handleIpcpMsg(msg)
+		break
+	case pppProtocolPAP:
+		ds.handlePapMsg(msg)
+		break
+	}
+}
+
+func (ds *dynamicSession) handleIPv4Msg(msg *pppDataMessage) {
+	if ds.dp != nil {
+		err := ds.dp.xxxx()
+		if err != nil {
+			level.Error(ds.logger).Log(
+				"message", "failed to handle IPv4 packet",
+				"error", err)
+		}
+	}
+}
+
+func (ds *dynamicSession) handleLcpMsg(msg *pppDataMessage) {
+
+}
+
+func (ds *dynamicSession) handleIpcpMsg(msg *pppDataMessage) {
+
+}
+
+func (ds *dynamicSession) handlePapMsg(msg *pppDataMessage) {
+
 }
 
 func (ds *dynamicSession) handleV2Msg(msg *v2ControlMessage) {

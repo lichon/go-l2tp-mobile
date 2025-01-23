@@ -35,7 +35,6 @@ type dynamicTunnel struct {
 	wg          sync.WaitGroup
 	sessionTxWg sync.WaitGroup
 	fsm         fsm
-	pppFsm      fsm
 }
 
 func (dt *dynamicTunnel) NewSession(name string, cfg *SessionConfig) (sess Session, err error) {
@@ -223,6 +222,21 @@ func fsmArgsToV2MsgFrom(args []interface{}) (msg *v2ControlMessage, from unix.So
 	return
 }
 
+func fsmArgsToPPPMsgFrom(args []interface{}) (msg *pppDataMessage, from unix.Sockaddr) {
+	if len(args) != 2 {
+		panic(fmt.Sprintf("unexpected argument count (wanted 2, got %v)", len(args)))
+	}
+	msg, ok := args[0].(*pppDataMessage)
+	if !ok {
+		panic(fmt.Sprintf("first argument %T not *pppDataMessage", args[0]))
+	}
+	from, ok = args[1].(unix.Sockaddr)
+	if !ok {
+		panic(fmt.Sprintf("second argument %T not unix.Sockaddr", args[0]))
+	}
+	return
+}
+
 // panics if expected arguments are not passed
 func fsmArgsToSession(args []interface{}) (ds *dynamicSession) {
 	if len(args) != 1 {
@@ -314,29 +328,10 @@ func (dt *dynamicTunnel) handlePPPMsg(msg *pppDataMessage, from unix.Sockaddr) {
 			"message", "bad ppp message",
 			"protocol", msg.Protocol(),
 			"error", err)
-		dt.handleEvent("close",
-			avpStopCCNResultCodeGeneralError,
-			avpErrorCodeBadValue,
-			fmt.Sprintf("bad %v message: %v", msg.Protocol(), err))
+		return
 	}
 
-	// Map the message to the appropriate event type.  If we haven't got
-	// an event appropriate to the incoming message close the tunnel.
-	eventMap := []struct {
-		p pppProtocolType
-		e string
-	}{
-		{pppProtocolLCP, "ppplcp"},
-		{pppProtocolIPV4, "pppipv4"},
-		{pppProtocolPAP, "ppppap"},
-		{pppProtocolPPCP, "pppipcp"},
-	}
-
-	for _, em := range eventMap {
-		if msg.Protocol() == em.p {
-			dt.handleEvent(em.e, msg, from)
-		}
-	}
+	dt.handleEvent("pppmsg", msg, from)
 }
 
 func (dt *dynamicTunnel) handleV2Msg(msg *v2ControlMessage, from unix.Sockaddr) {
@@ -556,6 +551,24 @@ func (dt *dynamicTunnel) fsmActForwardSessionMsg(args []interface{}) {
 	}
 }
 
+func (dt *dynamicTunnel) fsmActForwardSessionPPP(args []interface{}) {
+
+	msg, _ := fsmArgsToPPPMsgFrom(args)
+
+	if s, ok := dt.findSessionByID(ControlConnID(msg.Sid())); ok {
+		if ds, ok := s.(*dynamicSession); ok {
+			ds.handlePPP(msg)
+		}
+	} else {
+		// TODO: on receipt of ICRQ we'll end up here; to handle this
+		// we'd need to be able to create an LNS-mode session instance
+		level.Error(dt.logger).Log(
+			"message", "received session message for unknown session",
+			"message_type", msg.getType(),
+			"session ID", msg.Sid())
+	}
+}
+
 func (dt *dynamicTunnel) fsmActIgnoreMsg(args []interface{}) {
 
 	msg, _ := fsmArgsToV2MsgFrom(args)
@@ -563,10 +576,6 @@ func (dt *dynamicTunnel) fsmActIgnoreMsg(args []interface{}) {
 	level.Warn(dt.logger).Log(
 		"message", "ignoring unimplemented v2 control message",
 		"message_type", msg.getType())
-}
-
-func (dt *dynamicTunnel) fsmActStartPPP(args []interface{}) {
-	// TODO: implement PPP PAP
 }
 
 // Closes all tunnel resources and unlinks child sessions.
@@ -665,6 +674,7 @@ func newDynamicTunnel(name string, parent *Context, sal, sap unix.Sockaddr, cfg 
 			{from: "established", events: []string{"stopccn"}, cb: dt.fsmActOnStopccn, to: "dead"},
 			{from: "established", events: []string{"newsession"}, cb: dt.fsmActStartSession, to: "established"},
 			{from: "established", events: []string{"sessionmsg"}, cb: dt.fsmActForwardSessionMsg, to: "established"},
+			{from: "established", events: []string{"pppmsg"}, cb: dt.fsmActForwardSessionPPP, to: "established"},
 			{from: "established", events: []string{"sli", "wen"}, cb: dt.fsmActIgnoreMsg, to: "established"},
 			{
 				from: "established",
@@ -680,8 +690,8 @@ func newDynamicTunnel(name string, parent *Context, sal, sap unix.Sockaddr, cfg 
 		},
 	}
 
-	if parent.userMode {
-		dt.cp, err = newL2tpControlPlaneWithoutFile(sal, sap)
+	if parent.userFd > 0 {
+		dt.cp, err = newL2tpControlPlaneWithFd(sal, sap, parent.userFd)
 	} else {
 		dt.cp, err = newL2tpControlPlane(sal, sap)
 	}

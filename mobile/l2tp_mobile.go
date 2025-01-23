@@ -26,6 +26,8 @@ type VpnService interface {
 	// Protect is just a proxy to the VpnService.protect() method.
 	// See also: https://developer.android.com/reference/android/net/VpnService.html#protect(int)
 	Protect(fd int) bool
+
+	GetVpnFd() int
 }
 
 // PacketFlow should be implemented in Java/Kotlin.

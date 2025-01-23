@@ -97,7 +97,7 @@ type transport struct {
 	helloInFlight        bool
 	sendChan             chan *xmitMsg
 	retryChan            chan *xmitMsg
-	recvChan, rxPPPChan  chan *recvMsg
+	recvChan             chan *recvMsg
 	nrChan               chan []nrInd
 	rxQueue              []*recvMsg
 	txQueue, ackQueue    []*xmitMsg
@@ -400,10 +400,6 @@ func (xport *transport) recvFrame(rawMsg *rawMsg) (messages []controlMessage, er
 	messages, err = parseMessageBuffer(rawMsg.b)
 	if err != nil {
 		return nil, err
-	}
-	if msg, ok := messages[0].(*pppDataMessage); ok {
-		xport.rxPPPChan <- &recvMsg{msg: msg, from: rawMsg.sa}
-		return messages, nil
 	}
 
 	ns, nr := xport.slowStart.getSequenceNumbers()
@@ -721,7 +717,6 @@ func newTransport(logger log.Logger, cp *controlPlane, cfg transportConfig) (xpo
 		sendChan:   make(chan *xmitMsg),
 		retryChan:  make(chan *xmitMsg),
 		recvChan:   make(chan *recvMsg),
-		rxPPPChan:  make(chan *recvMsg),
 		nrChan:     make(chan []nrInd),
 		rxQueue:    []*recvMsg{},
 		txQueue:    []*xmitMsg{},
@@ -744,8 +739,6 @@ func newTransport(logger log.Logger, cp *controlPlane, cfg transportConfig) (xpo
 		xport.rxQueue = xport.rxQueue[0:0]
 		// Unblock user code blocking on receive from the transport
 		close(xport.recvChan)
-		// Unblock user code blocking on receive from the data transport
-		close(xport.rxPPPChan)
 	}()
 
 	return xport, nil

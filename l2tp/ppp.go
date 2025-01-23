@@ -21,7 +21,7 @@ const (
 	pppProtocolIPV4 pppProtocolType = 0x0021
 	pppProtocolLCP  pppProtocolType = 0xC021
 	pppProtocolPAP  pppProtocolType = 0x0023
-	pppProtocolPPCP pppProtocolType = 0x8021
+	pppProtocolIPCP pppProtocolType = 0x8021
 )
 
 const (
@@ -274,28 +274,28 @@ func newPPPPapAck(reqId byte) *ppp {
 
 func newPPPIpcpReq(opts []pppOption) *ppp {
 	return newPPP(
-		pppProtocolPPCP,
+		pppProtocolIPCP,
 		newPPPPayload(pppIP4CodeConfigureRequest, getLCPId(), encodePPPOptions(opts)),
 	)
 }
 
 func newPPPIpcpAck(reqId byte, opts []pppOption) *ppp {
 	return newPPP(
-		pppProtocolPPCP,
+		pppProtocolIPCP,
 		newPPPPayload(pppIP4CodeConfigureAck, reqId, encodePPPOptions(opts)),
 	)
 }
 
 func newPPPIpcpRej(reqId byte, opts []pppOption) *ppp {
 	return newPPP(
-		pppProtocolPPCP,
+		pppProtocolIPCP,
 		newPPPPayload(pppIP4CodeConfigureReject, reqId, encodePPPOptions(opts)),
 	)
 }
 
 func newPPPIpcpNak(reqId byte, opts []pppOption) *ppp {
 	return newPPP(
-		pppProtocolPPCP,
+		pppProtocolIPCP,
 		newPPPPayload(pppIP4CodeConfigureNak, reqId, encodePPPOptions(opts)),
 	)
 }
