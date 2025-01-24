@@ -28,12 +28,8 @@ type VpnService interface {
 	Protect(fd int) bool
 
 	GetVpnFd() int
-}
 
-// PacketFlow should be implemented in Java/Kotlin.
-type PacketFlow interface {
-	// WritePacket should writes packets to the TUN fd.
-	Write(packet []byte) (int, error)
+	HandleEvent(name string, event string)
 }
 
 var l2tpApp *application
@@ -98,27 +94,26 @@ func (app *application) stop() {
 func (app *application) HandleEvent(event interface{}) {
 	switch event.(type) {
 	case *l2tp.TunnelUpEvent:
-		// log
-
+		app.vpnService.HandleEvent("TunnelUpEvent", "")
+		break
 	case *l2tp.TunnelDownEvent:
-		// log
-
+		app.vpnService.HandleEvent("TunnelDownEvent", "")
+		break
 	case *l2tp.SessionUpEvent:
-		// log
-
+		app.vpnService.HandleEvent("SessionUpEvent", "")
+		break
 	case *l2tp.SessionDownEvent:
-		// log
+		app.vpnService.HandleEvent("SessionDownEvent", "")
+		break
 	}
 }
 
 // StartL2tp
-// connection handler for l2tp
 func StartL2tp(
-	packetFlow PacketFlow,
 	vpnService VpnService,
 	logWriter LogWriter,
 	configBytes []byte) error {
-	if packetFlow != nil {
+	if vpnService != nil {
 		l2tpConfig, err := config.LoadString(string(configBytes))
 		if err != nil {
 			return errors.New(fmt.Sprintf("failed to parse config: %v", err))
@@ -130,7 +125,7 @@ func StartL2tp(
 		l2tpApp.start()
 		return nil
 	}
-	return errors.New("packetFlow is null")
+	return errors.New("vpnService is null")
 }
 
 // StopL2tp
