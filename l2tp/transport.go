@@ -271,7 +271,13 @@ func (xport *transport) receiver() {
 		messages, err := xport.recvFrame(&rawMsg{b: buffer, sa: from})
 		if err != nil {
 			if strings.EqualFold(err.Error(), "data packet") {
+				level.Debug(xport.logger).Log(
+					"message", "data packet in",
+				)
 				xport.recvChan <- &recvMsg{msg: messages[0], from: from}
+				level.Debug(xport.logger).Log(
+					"message", "data packet to recvChan done",
+				)
 				continue
 			}
 			// Early packet handling can fail for a variety of reasons.

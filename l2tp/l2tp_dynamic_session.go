@@ -220,6 +220,13 @@ func (ds *dynamicSession) handlePPP(msg *pppDataMessage) {
 }
 
 func (ds *dynamicSession) handlePPPMsg(msg *pppDataMessage) {
+	level.Debug(ds.logger).Log(
+		"message", "ppp data message",
+		"protocol", msg.header.protocol,
+		"session_id", ds.cfg.SessionID,
+		"peer_session_id", ds.cfg.PeerSessionID,
+	)
+
 	if msg.Sid() != uint16(ds.cfg.SessionID) {
 		level.Error(ds.logger).Log(
 			"message", "received control message with the wrong SID",
