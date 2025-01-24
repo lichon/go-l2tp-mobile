@@ -10,6 +10,8 @@ var pppLCPId = 0
 
 type pppProtocolType uint16
 
+const pppLCPMagicNumber uint32 = 0x12345678
+
 const (
 	pppDataHeaderLen     = 10
 	pppPayloadHeaderLen  = 4
@@ -21,7 +23,7 @@ const (
 	pppControl      byte            = 0x03
 	pppProtocolIPV4 pppProtocolType = 0x0021
 	pppProtocolLCP  pppProtocolType = 0xC021
-	pppProtocolPAP  pppProtocolType = 0x0023
+	pppProtocolPAP  pppProtocolType = 0xC023
 	pppProtocolIPCP pppProtocolType = 0x8021
 )
 
@@ -148,6 +150,45 @@ func encodePPPOptions(opts []pppOption) []byte {
 	return encBuf.Bytes()
 }
 
+func (opt *pppOption) toUint16() uint16 {
+	return binary.BigEndian.Uint16(opt.value)
+}
+
+func (opt *pppOption) toUint32() uint32 {
+	return binary.BigEndian.Uint32(opt.value)
+}
+
+func (opt *pppOption) supportPap() bool {
+	return opt.type_ == pppLCPOptionAuthProtocol && pppProtocolType(opt.toUint16()) == pppProtocolPAP
+}
+
+func (opt *pppOption) supportMagicNumber() bool {
+	return opt.type_ == pppLCPOptionMagicNumber
+}
+
+func (opt *pppOption) supportMRU() bool {
+	return opt.type_ == pppLCPOptionMRU
+}
+
+func newPPPResponse(tid, sid ControlConnID, request *pppDataMessage) *pppDataMessage {
+	return &pppDataMessage{
+		header: PPPDataHeader{
+			FlagsVer: 0x0002,
+			Tid:      uint16(tid),
+			Sid:      uint16(sid),
+			Address:  pppAddress,
+			Control:  pppControl,
+			protocol: request.header.protocol,
+		},
+		payload: pppPayload{
+			code:       request.payload.code + 1,
+			identifier: request.payload.identifier,
+			length:     uint16(len(request.payload.data)),
+			data:       request.payload.data,
+		},
+	}
+}
+
 func newPPPMessage(tid, sid ControlConnID, protocol pppProtocolType, code, reqId byte, opts []pppOption) *pppDataMessage {
 	optsBytes := encodePPPOptions(opts)
 	return &pppDataMessage{
@@ -168,6 +209,32 @@ func newPPPMessage(tid, sid ControlConnID, protocol pppProtocolType, code, reqId
 	}
 }
 
+func newPapRequest(tid, sid ControlConnID, peerId, password string) *pppDataMessage {
+	papRequest := &papRequest{
+		peerIdLength:   byte(len(peerId)),
+		peerId:         peerId,
+		passwordLength: byte(len(password)),
+		password:       password,
+	}
+	papBytes := papRequest.toBytes()
+	return &pppDataMessage{
+		header: PPPDataHeader{
+			FlagsVer: 0x0002,
+			Tid:      uint16(tid),
+			Sid:      uint16(sid),
+			Address:  pppAddress,
+			Control:  pppControl,
+			protocol: pppProtocolPAP,
+		},
+		payload: pppPayload{
+			code:       pppPAPCodeAuthenticateRequest,
+			identifier: getLCPId(),
+			length:     uint16(len(papBytes)),
+			data:       papBytes,
+		},
+	}
+}
+
 type papRequest struct {
 	peerIdLength   byte
 	peerId         string
@@ -175,7 +242,7 @@ type papRequest struct {
 	password       string
 }
 
-func (pap *papRequest) encode() []byte {
+func (pap *papRequest) toBytes() []byte {
 	encBuf := new(bytes.Buffer)
 	err := binary.Write(encBuf, binary.BigEndian, pap)
 	if err != nil {

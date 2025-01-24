@@ -220,6 +220,13 @@ func (ds *dynamicSession) handlePPP(msg *pppDataMessage) {
 }
 
 func (ds *dynamicSession) handlePPPMsg(msg *pppDataMessage) {
+	if msg.Sid() != uint16(ds.cfg.SessionID) {
+		level.Error(ds.logger).Log(
+			"message", "received control message with the wrong SID",
+			"expected", ds.cfg.SessionID,
+			"got", msg.Sid())
+		return
+	}
 	switch msg.header.protocol {
 	case pppProtocolIPV4:
 		ds.handleIPv4Msg(msg)
@@ -249,7 +256,46 @@ func (ds *dynamicSession) handleIPv4Msg(msg *pppDataMessage) {
 }
 
 func (ds *dynamicSession) handleLcpMsg(msg *pppDataMessage) {
+	tid := ds.parent.getCfg().TunnelID
+	sid := ds.cfg.SessionID
+	supportedOpts := []pppOption{}
+	rejectOpts := []pppOption{}
 
+	supportPap := false
+	if msg.payload.code == pppLCPCodeConfigureRequest {
+		res := newPPPResponse(tid, sid, msg)
+		opts := msg.payload.getOptions()
+		for _, opt := range opts {
+			if opt.supportPap() {
+				supportedOpts = append(supportedOpts, opt)
+				supportPap = true
+				continue
+			}
+			if opt.supportMagicNumber() {
+				supportedOpts = append(supportedOpts, opt)
+				continue
+			}
+			if opt.supportMRU() {
+				supportedOpts = append(supportedOpts, opt)
+				continue
+			}
+			rejectOpts = append(rejectOpts, opt)
+		}
+
+		if len(rejectOpts) > 0 {
+			res.payload.code = pppLCPCodeConfigureReject
+			res.payload.data = encodePPPOptions(rejectOpts)
+			ds.sendMessage(res)
+		} else if len(supportedOpts) > 0 {
+			res.payload.code = pppLCPCodeConfigureAck
+			res.payload.data = encodePPPOptions(supportedOpts)
+			ds.sendMessage(res)
+			if supportPap {
+				req := newPapRequest(tid, sid, "test", "test123")
+				ds.sendMessage(req)
+			}
+		}
+	}
 }
 
 func (ds *dynamicSession) handleIpcpMsg(msg *pppDataMessage) {

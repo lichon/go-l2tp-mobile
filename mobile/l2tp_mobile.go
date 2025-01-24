@@ -45,7 +45,11 @@ func newApplication(cfg *config.Config, logWriter LogWriter, vpnService VpnServi
 	}
 
 	logger := log.NewLogfmtLogger(logWriter)
-	app.l2tpCtx, err = l2tp.NewUserContext(nil, logger)
+	vpnDataPlane, err := newVpnDataPlane(vpnService)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create vpn data plane: %v", err)
+	}
+	app.l2tpCtx, err = l2tp.NewUserContext(vpnDataPlane, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create L2TP context: %v", err)
 	}
