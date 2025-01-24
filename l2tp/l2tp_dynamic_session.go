@@ -542,6 +542,7 @@ func newDynamicSession(serial uint32, name string, parent *dynamicTunnel, cfg *S
 			cfg),
 		callSerial: serial,
 		dt:         parent,
+		pppRxChan:  make(chan *pppDataMessage),
 		msgRxChan:  make(chan controlMessage),
 		eventChan:  make(chan string),
 		closeChan:  make(chan interface{}),
