@@ -220,7 +220,7 @@ func (ds *dynamicSession) handlePPP(msg *pppDataMessage) {
 }
 
 func (ds *dynamicSession) handlePPPMsg(msg *pppDataMessage) {
-	switch msg.ppp.header.protocol {
+	switch msg.header.protocol {
 	case pppProtocolIPV4:
 		ds.handleIPv4Msg(msg)
 		break
@@ -240,7 +240,7 @@ func (ds *dynamicSession) handleIPv4Msg(msg *pppDataMessage) {
 	if ds.dp == nil {
 		return
 	}
-	err := ds.dp.HandleDataPacket(msg.payload)
+	err := ds.dp.HandleDataPacket(msg.payload.data)
 	if err != nil {
 		level.Debug(ds.logger).Log(
 			"message", "failed to handle IPv4 packet",

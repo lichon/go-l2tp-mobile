@@ -16,18 +16,20 @@ type vpnDataPlane struct {
 }
 
 type vpnTunnelDataPlane struct {
-	f *vpnDataPlane
 }
 
 type vpnSessionDataPlane struct {
-	f     *vpnDataPlane
-	vpnFd int
+	vpnFd    int
+	tunnelFd int
+	tid      l2tp.ControlConnID
+	ptid     l2tp.ControlConnID
+	isDown   bool
 }
 
 func (dpf *vpnDataPlane) NewTunnel(tcfg *l2tp.TunnelConfig, sal, sap unix.Sockaddr, fd int) (l2tp.TunnelDataPlane, error) {
 	// control plane started
 	dpf.tunnelFd = fd
-	return &vpnTunnelDataPlane{f: dpf}, nil
+	return &vpnTunnelDataPlane{}, nil
 }
 
 func (dpf *vpnDataPlane) NewSession(tid, ptid l2tp.ControlConnID, scfg *l2tp.SessionConfig) (l2tp.SessionDataPlane, error) {
@@ -35,7 +37,9 @@ func (dpf *vpnDataPlane) NewSession(tid, ptid l2tp.ControlConnID, scfg *l2tp.Ses
 	// start reading from vpn fd, and writing to tunnel fd
 	// TODO get session config, e.g. MTU, MRU, etc.
 	fd := dpf.vpnService.GetVpnFd()
-	return &vpnSessionDataPlane{f: dpf, vpnFd: fd}, nil
+	session := &vpnSessionDataPlane{vpnFd: fd, tunnelFd: dpf.tunnelFd, tid: tid, ptid: ptid, isDown: false}
+	go session.start()
+	return session, nil
 }
 
 func (dpf *vpnDataPlane) Close() {
@@ -43,6 +47,26 @@ func (dpf *vpnDataPlane) Close() {
 
 func (tdp *vpnTunnelDataPlane) Down() error {
 	return nil
+}
+
+func (sdp *vpnSessionDataPlane) start() {
+	buffer := make([]byte, 4096)
+	pppHeader := l2tp.NewPPPDataHeader(sdp.tid, sdp.ptid, uint16(0x0021)) // ipv4
+	headerBytes := pppHeader.ToBytes()
+	limitSize := 1500 - len(headerBytes)
+	for !sdp.isDown {
+		n, _, err := unix.Recvfrom(sdp.vpnFd, buffer, unix.MSG_NOSIGNAL)
+		if err == unix.EAGAIN || err == unix.EWOULDBLOCK || n > limitSize {
+			// skip over size limit packets
+			continue
+		}
+		if err != nil {
+			break
+		}
+		if err == nil && n > 0 {
+			unix.Write(sdp.tunnelFd, append(headerBytes, buffer[:n]...))
+		}
+	}
 }
 
 func (sdp *vpnSessionDataPlane) GetStatistics() (*l2tp.SessionDataPlaneStatistics, error) {
@@ -54,11 +78,13 @@ func (sdp *vpnSessionDataPlane) GetInterfaceName() (string, error) {
 }
 
 func (sdp *vpnSessionDataPlane) Down() error {
+	sdp.isDown = true
 	return nil
 }
 
 func (sdp *vpnSessionDataPlane) HandleDataPacket(data []byte) error {
-	return unix.Write(sdp.vpnFd, data)
+	_, err := unix.Write(sdp.vpnFd, data)
+	return err
 }
 
 func newVpnDataPlane(vpnService VpnService) (l2tp.DataPlane, error) {

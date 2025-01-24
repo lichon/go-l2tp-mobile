@@ -37,7 +37,6 @@ const (
 	commonHeaderLen      = 4
 	v2HeaderLen          = 12
 	v3HeaderLen          = 12
-	v2DataHeaderLen      = 6
 )
 
 // Message AVP specification as per RFCx
