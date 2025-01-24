@@ -288,9 +288,8 @@ type pppDataMessage struct {
 }
 
 func parsePPPMessage(b []byte) (messages []controlMessage) {
-	var msg *pppDataMessage
-	var err error
-	if msg, err = bytesToDataMsg(b); err != nil {
+	msg, err := bytesToDataMsg(b)
+	if err != nil {
 		return nil
 	}
 	return []controlMessage{msg}

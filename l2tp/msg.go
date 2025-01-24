@@ -592,7 +592,7 @@ func parseMessageBuffer(b []byte) (messages []controlMessage, err error) {
 		// peer will retransmit it, so just log the issue.
 		if 0 == h.FlagsVer&0x8000 {
 			// now we support ppp data packet
-			return parsePPPMessage(b), fmt.Errorf("data packet")
+			return parsePPPMessage(b), errors.New("data packet")
 		}
 
 		// Throw out malformed packets
