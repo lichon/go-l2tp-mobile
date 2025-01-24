@@ -178,7 +178,7 @@ func newPPPResponse(tid, sid ControlConnID, request *pppDataMessage) *pppDataMes
 			Sid:      uint16(sid),
 			Address:  pppAddress,
 			Control:  pppControl,
-			protocol: request.header.protocol,
+			Protocol: request.header.Protocol,
 		},
 		payload: pppPayload{
 			code:       request.payload.code + 1,
@@ -198,7 +198,7 @@ func newPPPMessage(tid, sid ControlConnID, protocol pppProtocolType, code, reqId
 			Sid:      uint16(sid),
 			Address:  pppAddress,
 			Control:  pppControl,
-			protocol: protocol,
+			Protocol: uint16(protocol),
 		},
 		payload: pppPayload{
 			code:       code,
@@ -224,7 +224,7 @@ func newPapRequest(tid, sid ControlConnID, peerId, password string) *pppDataMess
 			Sid:      uint16(sid),
 			Address:  pppAddress,
 			Control:  pppControl,
-			protocol: pppProtocolPAP,
+			Protocol: uint16(pppProtocolPAP),
 		},
 		payload: pppPayload{
 			code:       pppPAPCodeAuthenticateRequest,
@@ -259,7 +259,7 @@ type PPPDataHeader struct {
 	// PPP header
 	Address  byte
 	Control  byte
-	protocol pppProtocolType
+	Protocol uint16
 }
 
 func NewPPPDataHeader(tid, sid ControlConnID, protocol uint16) *PPPDataHeader {
@@ -269,7 +269,7 @@ func NewPPPDataHeader(tid, sid ControlConnID, protocol uint16) *PPPDataHeader {
 		Sid:      uint16(sid),
 		Address:  pppAddress,
 		Control:  pppControl,
-		protocol: pppProtocolType(protocol),
+		Protocol: protocol,
 	}
 }
 
@@ -361,7 +361,7 @@ func (m *pppDataMessage) Sid() uint16 {
 }
 
 func (m *pppDataMessage) Protocol() pppProtocolType {
-	return m.header.protocol
+	return pppProtocolType(m.header.Protocol)
 }
 
 func bytesToDataMsg(b []byte) (msg *pppDataMessage, err error) {
@@ -370,7 +370,7 @@ func bytesToDataMsg(b []byte) (msg *pppDataMessage, err error) {
 	if err = binary.Read(buf, binary.BigEndian, &msg.header); err != nil {
 		return nil, err
 	}
-	if msg.header.protocol == pppProtocolIPV4 {
+	if msg.header.Protocol == uint16(pppProtocolIPV4) {
 		msg.payload.data = b[pppDataHeaderLen:]
 		return msg, nil
 	} else {

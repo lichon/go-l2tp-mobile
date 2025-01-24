@@ -401,13 +401,7 @@ func (xport *transport) sender() {
 }
 
 func (xport *transport) recvFrame(rawMsg *rawMsg) (messages []controlMessage, err error) {
-	level.Debug(xport.logger).Log(
-		"message", "parse frame",
-	)
 	messages, err = parseMessageBuffer(rawMsg.b)
-	level.Debug(xport.logger).Log(
-		"message", "parse frame done",
-	)
 	if err != nil {
 		return messages, err
 	}

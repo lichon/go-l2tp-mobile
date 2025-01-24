@@ -234,7 +234,7 @@ func (ds *dynamicSession) handlePPPMsg(msg *pppDataMessage) {
 			"got", msg.Sid())
 		return
 	}
-	switch msg.header.protocol {
+	switch msg.Protocol() {
 	case pppProtocolIPV4:
 		ds.handleIPv4Msg(msg)
 		break
