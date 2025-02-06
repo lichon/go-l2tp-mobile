@@ -265,14 +265,22 @@ func (ds *dynamicSession) handleIPv4Msg(msg *pppDataMessage) {
 func (ds *dynamicSession) handleLcpMsg(msg *pppDataMessage) {
 	tid := ds.parent.getCfg().TunnelID
 	sid := ds.cfg.SessionID
-	supportedOpts := []pppOption{}
-	rejectOpts := []pppOption{}
+	supportedOpts := make([]pppOption, 0)
+	rejectOpts := make([]pppOption, 0)
 
+	level.Debug(ds.logger).Log(
+		"message", "received lcp message",
+		"code", msg.payload.code,
+		"opts len", len(msg.payload.getOptions()))
 	supportPap := false
 	if msg.payload.code == pppLCPCodeConfigureRequest {
 		res := newPPPResponse(tid, sid, msg)
 		opts := msg.payload.getOptions()
 		for _, opt := range opts {
+			level.Debug(ds.logger).Log(
+				"message", "lcp option",
+				"type", opt.type_,
+				"value", opt.value)
 			if opt.supportPap() {
 				supportedOpts = append(supportedOpts, opt)
 				supportPap = true
