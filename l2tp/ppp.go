@@ -11,6 +11,7 @@ var pppLCPId = 0
 type pppProtocolType uint16
 
 const pppLCPMagicNumber uint32 = 0x12345678
+const pppLCPMRU uint16 = 1500
 
 const (
 	pppDataHeaderLen     = 10
@@ -28,58 +29,24 @@ const (
 )
 
 const (
-	pppLCPCodeConfigureRequest byte = 0x01
-	pppLCPCodeConfigureAck     byte = 0x02
-	pppLCPCodeConfigureNak     byte = 0x03
-	pppLCPCodeConfigureReject  byte = 0x04
-	pppLCPCodeTerminateRequest byte = 0x05
-	pppLCPCodeTerminateAck     byte = 0x06
-	pppLCPCodeCodeReject       byte = 0x07
-	pppLCPCodeProtocolReject   byte = 0x08
-	pppLCPCodeEchoRequest      byte = 0x09
-	pppLCPCodeEchoReply        byte = 0x0A
-	pppLCPCodeDiscardRequest   byte = 0x0B
+	pppCodeConfigureRequest byte = 0x01
+	pppCodeConfigureAck     byte = 0x02
+	pppCodeConfigureNak     byte = 0x03
+	pppCodeConfigureReject  byte = 0x04
+	pppCodeTerminateRequest byte = 0x05
+	pppCodeTerminateAck     byte = 0x06
+	pppCodeCodeReject       byte = 0x07
+	pppCodeProtocolReject   byte = 0x08
+	pppCodeEchoRequest      byte = 0x09
+	pppCodeEchoReply        byte = 0x0A
+	pppCodeDiscardRequest   byte = 0x0B
 )
 
 const (
-	pppPAPCodeAuthenticateRequest byte = 0x01
-	pppPAPCodeAuthenticateAck     byte = 0x02
-	pppPAPCodeAuthenticateNak     byte = 0x03
-)
-
-const (
-	pppLPCPCodeConfigureRequest byte = 0x01
-	pppLPCPCodeConfigureAck     byte = 0x02
-	pppLPCPCodeConfigureNak     byte = 0x03
-	pppLPCPCodeConfigureReject  byte = 0x04
-	pppLPCPCodeTerminateRequest byte = 0x05
-	pppLPCPCodeTerminateAck     byte = 0x06
-	pppLPCPCodeCodeReject       byte = 0x07
-	pppLPCPCodeProtocolReject   byte = 0x08
-	pppLPCPCodeEchoRequest      byte = 0x09
-	pppLPCPCodeEchoReply        byte = 0x0A
-	pppLPCPCodeDiscardRequest   byte = 0x0B
-)
-
-const (
-	pppIP4CodeConfigureRequest byte = 0x01
-	pppIP4CodeConfigureAck     byte = 0x02
-	pppIP4CodeConfigureNak     byte = 0x03
-	pppIP4CodeConfigureReject  byte = 0x04
-	pppIP4CodeTerminateRequest byte = 0x05
-	pppIP4CodeTerminateAck     byte = 0x06
-	pppIP4CodeCodeReject       byte = 0x07
-	pppIP4CodeProtocolReject   byte = 0x08
-	pppIP4CodeEchoRequest      byte = 0x09
-	pppIP4CodeEchoReply        byte = 0x0A
-	pppIP4CodeDiscardRequest   byte = 0x0B
-)
-
-const (
-	pppIP4OptionIPCompression byte = 0x002D
-	pppIP4OptionIPAddress     byte = 0x03
-	pppIP4OptionPrimaryDNS    byte = 0x81
-	pppIP4OptionSecondaryDNS  byte = 0x83
+	pppIPCPOptionIPCompression byte = 0x002D
+	pppIPCPOptionIPAddress     byte = 0x03
+	pppIPCPOptionPrimaryDNS    byte = 0x81
+	pppIPCPOptionSecondaryDNS  byte = 0x83
 )
 
 const (
@@ -96,34 +63,30 @@ type pppPayload struct {
 }
 
 func (payload *pppPayload) getOptions() []pppOption {
-	opts := make([]pppOption, 0)
-	buf := bytes.NewBuffer(payload.data)
-	for buf.Len() > 0 {
-		var opt pppOption
-		err := binary.Read(buf, binary.BigEndian, &opt)
-		if err != nil {
-			return nil
+	opts := []pppOption{}
+	b := payload.data
+	for len(b) > 2 {
+		opt := pppOption{
+			type_:  b[0],
+			length: uint8(b[1]),
 		}
+		opt.value = b[2:opt.length]
 		opts = append(opts, opt)
+		b = b[opt.length:]
 	}
 	return opts
 }
 
-func (payload *pppPayload) getOptionValue(optType byte) []byte {
-	opts := payload.getOptions()
-	for _, opt := range opts {
-		if opt.type_ == optType {
-			return opt.value
-		}
-	}
-	return nil
+func (payload *pppPayload) setData(data []byte) {
+	payload.data = data
+	payload.length = uint16(len(data)) + 4
 }
 
 func newPPPPayload(code byte, identifier byte, data []byte) *pppPayload {
 	return &pppPayload{
 		code:       code,
 		identifier: identifier,
-		length:     uint16(len(data)),
+		length:     uint16(len(data)) + 2,
 		data:       data,
 	}
 }
@@ -133,17 +96,26 @@ func getLCPId() byte {
 	return byte(pppLCPId)
 }
 
+func resetLCPId() {
+	pppLCPId = 0
+}
+
 type pppOption struct {
 	type_  byte
-	length byte
+	length uint8
 	value  []byte
 }
 
 func encodePPPOptions(opts []pppOption) []byte {
 	encBuf := new(bytes.Buffer)
 	for _, o := range opts {
-		err := binary.Write(encBuf, binary.BigEndian, o)
-		if err != nil {
+		if err := encBuf.WriteByte(o.type_); err != nil {
+			return nil
+		}
+		if err := encBuf.WriteByte(o.length); err != nil {
+			return nil
+		}
+		if _, err := encBuf.Write(o.value); err != nil {
 			return nil
 		}
 	}
@@ -183,7 +155,7 @@ func newPPPResponse(tid, sid ControlConnID, request *pppDataMessage) *pppDataMes
 		payload: pppPayload{
 			code:       request.payload.code + 1,
 			identifier: request.payload.identifier,
-			length:     uint16(len(request.payload.data)),
+			length:     0,
 			data:       request.payload.data,
 		},
 	}
@@ -203,17 +175,42 @@ func newPPPMessage(tid, sid ControlConnID, protocol pppProtocolType, code, reqId
 		payload: pppPayload{
 			code:       code,
 			identifier: reqId,
-			length:     uint16(len(optsBytes)),
+			length:     uint16(len(optsBytes)) + 4,
 			data:       optsBytes,
 		},
 	}
 }
 
+func newLcpRequest(tid, sid ControlConnID, supportMRU, supportMagicNum bool) *pppDataMessage {
+	resetLCPId()
+	opts := []pppOption{}
+	if supportMRU {
+		mru := make([]byte, 2)
+		binary.BigEndian.PutUint16(mru, pppLCPMRU)
+		opts = append(opts, pppOption{
+			type_:  pppLCPOptionMRU,
+			length: 4,
+			value:  mru,
+		})
+	}
+	if supportMagicNum {
+		magicNum := make([]byte, 4)
+		binary.BigEndian.PutUint32(magicNum, pppLCPMagicNumber)
+		opts = append(opts, pppOption{
+			type_:  pppLCPOptionMagicNumber,
+			length: 6,
+			value:  magicNum,
+		})
+	}
+	return newPPPMessage(tid, sid, pppProtocolLCP, pppCodeConfigureRequest, getLCPId(), opts)
+}
+
 func newPapRequest(tid, sid ControlConnID, peerId, password string) *pppDataMessage {
+	resetLCPId()
 	papRequest := &papRequest{
-		peerIdLength:   byte(len(peerId)),
+		peerIdLength:   uint8(len(peerId)),
 		peerId:         peerId,
-		passwordLength: byte(len(password)),
+		passwordLength: uint8(len(password)),
 		password:       password,
 	}
 	papBytes := papRequest.toBytes()
@@ -227,25 +224,52 @@ func newPapRequest(tid, sid ControlConnID, peerId, password string) *pppDataMess
 			Protocol: uint16(pppProtocolPAP),
 		},
 		payload: pppPayload{
-			code:       pppPAPCodeAuthenticateRequest,
+			code:       pppCodeConfigureRequest,
 			identifier: getLCPId(),
-			length:     uint16(len(papBytes)),
+			length:     uint16(len(papBytes)) + 4,
 			data:       papBytes,
 		},
 	}
 }
 
+func newIpcpRequest(tid, sid ControlConnID, ipAddr []byte) *pppDataMessage {
+	opts := []pppOption{}
+	if ipAddr == nil {
+		resetLCPId()
+		opts = append(opts, pppOption{
+			type_:  pppIPCPOptionIPAddress,
+			length: 6,
+			value:  []byte{0, 0, 0, 0},
+		})
+	} else {
+		opts = append(opts, pppOption{
+			type_:  pppIPCPOptionIPAddress,
+			length: 6,
+			value:  ipAddr,
+		})
+	}
+	return newPPPMessage(tid, sid, pppProtocolIPCP, pppCodeConfigureRequest, getLCPId(), opts)
+}
+
 type papRequest struct {
-	peerIdLength   byte
+	peerIdLength   uint8
 	peerId         string
-	passwordLength byte
+	passwordLength uint8
 	password       string
 }
 
 func (pap *papRequest) toBytes() []byte {
 	encBuf := new(bytes.Buffer)
-	err := binary.Write(encBuf, binary.BigEndian, pap)
-	if err != nil {
+	if err := encBuf.WriteByte(pap.peerIdLength); err != nil {
+		return nil
+	}
+	if _, err := encBuf.WriteString(pap.peerId); err != nil {
+		return nil
+	}
+	if err := encBuf.WriteByte(pap.passwordLength); err != nil {
+		return nil
+	}
+	if _, err := encBuf.WriteString(pap.password); err != nil {
 		return nil
 	}
 	return encBuf.Bytes()
@@ -338,7 +362,19 @@ func (m *pppDataMessage) toBytes() ([]byte, error) {
 		return nil, err
 	}
 
-	if err := binary.Write(buf, binary.BigEndian, m.payload); err != nil {
+	if err := binary.Write(buf, binary.BigEndian, m.payload.code); err != nil {
+		return nil, err
+	}
+
+	if err := binary.Write(buf, binary.BigEndian, m.payload.identifier); err != nil {
+		return nil, err
+	}
+
+	if err := binary.Write(buf, binary.BigEndian, m.payload.length); err != nil {
+		return nil, err
+	}
+
+	if _, err := buf.Write(m.payload.data); err != nil {
 		return nil, err
 	}
 
@@ -386,6 +422,6 @@ func parsePPPBuffer(b []byte, p *pppPayload) (err error) {
 	p.code = b[0]
 	p.identifier = b[1]
 	p.length = binary.BigEndian.Uint16(b[2:4])
-	p.data = b[4:p.length]
+	p.data = b[4:]
 	return nil
 }

@@ -263,62 +263,102 @@ func (ds *dynamicSession) handleIPv4Msg(msg *pppDataMessage) {
 }
 
 func (ds *dynamicSession) handleLcpMsg(msg *pppDataMessage) {
-	tid := ds.parent.getCfg().TunnelID
-	sid := ds.cfg.SessionID
+	tid := ds.parent.getCfg().PeerTunnelID
+	sid := ds.cfg.PeerSessionID
 	supportedOpts := make([]pppOption, 0)
 	rejectOpts := make([]pppOption, 0)
 
-	level.Debug(ds.logger).Log(
-		"message", "received lcp message",
-		"code", msg.payload.code,
-		"opts len", len(msg.payload.getOptions()))
-	supportPap := false
-	if msg.payload.code == pppLCPCodeConfigureRequest {
-		res := newPPPResponse(tid, sid, msg)
+	if msg.payload.code == pppCodeConfigureRequest {
+		supportMagicNumber := false
+		supportMRU := false
 		opts := msg.payload.getOptions()
 		for _, opt := range opts {
-			level.Debug(ds.logger).Log(
-				"message", "lcp option",
-				"type", opt.type_,
-				"value", opt.value)
 			if opt.supportPap() {
 				supportedOpts = append(supportedOpts, opt)
-				supportPap = true
 				continue
 			}
 			if opt.supportMagicNumber() {
 				supportedOpts = append(supportedOpts, opt)
+				supportMagicNumber = true
 				continue
 			}
 			if opt.supportMRU() {
 				supportedOpts = append(supportedOpts, opt)
+				supportMRU = true
 				continue
 			}
 			rejectOpts = append(rejectOpts, opt)
 		}
 
+		res := newPPPResponse(tid, sid, msg)
 		if len(rejectOpts) > 0 {
-			res.payload.code = pppLCPCodeConfigureReject
-			res.payload.data = encodePPPOptions(rejectOpts)
-			ds.sendMessage(res)
+			res.payload.code = pppCodeConfigureReject
+			res.payload.setData(encodePPPOptions(rejectOpts))
+			ds.dt.xport.sendMessage1(res, false)
 		} else if len(supportedOpts) > 0 {
-			res.payload.code = pppLCPCodeConfigureAck
-			res.payload.data = encodePPPOptions(supportedOpts)
-			ds.sendMessage(res)
-			if supportPap {
-				req := newPapRequest(tid, sid, "test", "test123")
-				ds.sendMessage(req)
-			}
+			res.payload.code = pppCodeConfigureAck
+			res.payload.setData(encodePPPOptions(supportedOpts))
+			ds.dt.xport.sendMessage1(res, false)
+
+			// start lcp request
+			// TODO support retry
+			lcpReq := newLcpRequest(tid, sid, supportMRU, supportMagicNumber)
+			ds.dt.xport.sendMessage1(lcpReq, false)
 		}
+	} else if msg.payload.code == pppCodeConfigureAck {
+		req := newPapRequest(tid, sid, "user001", "User@123")
+		ds.dt.xport.sendMessage1(req, false)
 	}
 }
 
 func (ds *dynamicSession) handleIpcpMsg(msg *pppDataMessage) {
+	tid := ds.parent.getCfg().PeerTunnelID
+	sid := ds.cfg.PeerSessionID
 
+	level.Debug(ds.logger).Log(
+		"message", "received ipcp message",
+		"code", msg.payload.code,
+		"opts len", len(msg.payload.getOptions()),
+	)
+
+	if msg.payload.code == pppCodeConfigureRequest {
+		opts := msg.payload.getOptions()
+		// accept all options
+		res := newPPPResponse(tid, sid, msg)
+		res.payload.code = pppCodeConfigureAck
+		res.payload.setData(encodePPPOptions(opts))
+		ds.dt.xport.sendMessage1(res, false)
+	} else if msg.payload.code == pppCodeConfigureNak {
+		opts := msg.payload.getOptions()
+		ip := []byte{0, 0, 0, 0}
+		for _, opt := range opts {
+			if opt.type_ == pppIPCPOptionIPAddress {
+				ip = opt.value
+				break
+			}
+		}
+		req := newIpcpRequest(tid, sid, ip)
+		ds.dt.xport.sendMessage1(req, false)
+		// get ip address from option
+	}
 }
 
 func (ds *dynamicSession) handlePapMsg(msg *pppDataMessage) {
+	tid := ds.parent.getCfg().PeerTunnelID
+	sid := ds.cfg.PeerSessionID
 
+	level.Debug(ds.logger).Log(
+		"message", "received pap message",
+		"code", msg.payload.code,
+	)
+	if msg.payload.code == pppCodeConfigureAck {
+		// auth success
+		req := newIpcpRequest(tid, sid, nil)
+		ds.dt.xport.sendMessage1(req, false)
+	} else {
+		// TODO support pppCodeConfigureNak
+		// close session
+	}
 }
 
 func (ds *dynamicSession) handleV2Msg(msg *v2ControlMessage) {
