@@ -251,6 +251,46 @@ func newIpcpRequest(tid, sid ControlConnID, ipAddr []byte) *pppDataMessage {
 	return newPPPMessage(tid, sid, pppProtocolIPCP, pppCodeConfigureRequest, getLCPId(), opts)
 }
 
+func newEchoReply(tid, sid ControlConnID, request *pppDataMessage) *pppDataMessage {
+	magicNum := make([]byte, 4)
+	binary.BigEndian.PutUint32(magicNum, pppLCPMagicNumber)
+	return &pppDataMessage{
+		header: PPPDataHeader{
+			FlagsVer: 0x0002,
+			Tid:      uint16(tid),
+			Sid:      uint16(sid),
+			Address:  pppAddress,
+			Control:  pppControl,
+			Protocol: request.header.Protocol,
+		},
+		payload: pppPayload{
+			code:       request.payload.code + 1,
+			identifier: request.payload.identifier,
+			length:     8,
+			data:       magicNum,
+		},
+	}
+}
+
+func newTerminateReply(tid, sid ControlConnID, request *pppDataMessage) *pppDataMessage {
+	return &pppDataMessage{
+		header: PPPDataHeader{
+			FlagsVer: 0x0002,
+			Tid:      uint16(tid),
+			Sid:      uint16(sid),
+			Address:  pppAddress,
+			Control:  pppControl,
+			Protocol: request.header.Protocol,
+		},
+		payload: pppPayload{
+			code:       request.payload.code + 1,
+			identifier: request.payload.identifier,
+			length:     request.payload.length,
+			data:       request.payload.data,
+		},
+	}
+}
+
 type papRequest struct {
 	peerIdLength   uint8
 	peerId         string

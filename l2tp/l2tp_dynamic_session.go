@@ -308,6 +308,14 @@ func (ds *dynamicSession) handleLcpMsg(msg *pppDataMessage) {
 	} else if msg.payload.code == pppCodeConfigureAck {
 		req := newPapRequest(tid, sid, "user001", "User@123")
 		ds.dt.xport.sendMessage1(req, false)
+	} else if msg.payload.code == pppCodeEchoRequest {
+		res := newEchoReply(tid, sid, msg)
+		ds.dt.xport.sendMessage1(res, false)
+	} else if msg.payload.code == pppCodeTerminateRequest {
+		res := newTerminateReply(tid, sid, msg)
+		ds.dt.xport.sendMessage1(res, false)
+		// session closed, notify
+		ds.handleEvent("close", avpCDNResultCodeAdminDisconnect)
 	}
 }
 
