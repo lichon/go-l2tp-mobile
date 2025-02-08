@@ -23,7 +23,7 @@ type vpnTunnelDataPlane struct {
 type vpnSessionDataPlane struct {
 	vpnFd    int
 	tunnelFd int
-	tid      l2tp.ControlConnID
+	psid     l2tp.ControlConnID
 	ptid     l2tp.ControlConnID
 	isDown   bool
 	logger   log.Logger
@@ -39,8 +39,9 @@ func (dpf *vpnDataPlane) NewSession(tid, ptid l2tp.ControlConnID, scfg *l2tp.Ses
 	// session started
 	// start reading from vpn fd, and writing to tunnel fd
 	// TODO get session config, e.g. MTU, MRU, etc.
+	psid := scfg.PeerSessionID
 	fd := dpf.vpnService.GetVpnFd()
-	session := &vpnSessionDataPlane{vpnFd: fd, tunnelFd: dpf.tunnelFd, tid: tid, ptid: ptid, isDown: false}
+	session := &vpnSessionDataPlane{vpnFd: fd, tunnelFd: dpf.tunnelFd, psid: psid, ptid: ptid, isDown: false}
 	session.logger = dpf.logger
 	go session.start()
 	return session, nil
@@ -55,7 +56,7 @@ func (tdp *vpnTunnelDataPlane) Down() error {
 
 func (sdp *vpnSessionDataPlane) start() {
 	buffer := make([]byte, 4096)
-	pppHeader := l2tp.NewPPPDataHeader(sdp.tid, sdp.ptid, uint16(0x0021)) // ipv4
+	pppHeader := l2tp.NewPPPDataHeader(sdp.ptid, sdp.psid, uint16(0x0021)) // ipv4
 	headerBytes := pppHeader.ToBytes()
 	limitSize := 1500 - len(headerBytes)
 	for !sdp.isDown {
