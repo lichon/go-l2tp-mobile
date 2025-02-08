@@ -59,10 +59,10 @@ func (sdp *vpnSessionDataPlane) start() {
 	headerBytes := pppHeader.ToBytes()
 	limitSize := 1500 - len(headerBytes)
 	for !sdp.isDown {
-		n, _, err := unix.Recvfrom(sdp.vpnFd, buffer, unix.MSG_NOSIGNAL)
+		n, err := unix.Read(sdp.vpnFd, buffer)
 		if sdp.logger != nil {
 			sdp.logger.Log(
-				"message", "recv from vpn fd",
+				"message", "read from vpn fd",
 				"len", n,
 				"err", err)
 		}
