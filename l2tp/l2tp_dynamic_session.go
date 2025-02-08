@@ -252,6 +252,8 @@ func (ds *dynamicSession) handlePPPMsg(msg *pppDataMessage) {
 
 func (ds *dynamicSession) handleIPv4Msg(msg *pppDataMessage) {
 	if ds.dp == nil {
+		level.Debug(ds.logger).Log(
+			"message", "got ipv4 packet, session dataplane is nil")
 		return
 	}
 	err := ds.dp.HandleDataPacket(msg.payload.data)

@@ -3,6 +3,7 @@ package l2tpMobile
 import (
 	"go-l2tp-mobile/l2tp"
 
+	"github.com/go-kit/log"
 	"golang.org/x/sys/unix"
 )
 
@@ -12,6 +13,7 @@ var _ l2tp.SessionDataPlane = (*vpnSessionDataPlane)(nil)
 
 type vpnDataPlane struct {
 	vpnService VpnService
+	logger     log.Logger
 	tunnelFd   int
 }
 
@@ -24,6 +26,7 @@ type vpnSessionDataPlane struct {
 	tid      l2tp.ControlConnID
 	ptid     l2tp.ControlConnID
 	isDown   bool
+	logger   log.Logger
 }
 
 func (dpf *vpnDataPlane) NewTunnel(tcfg *l2tp.TunnelConfig, sal, sap unix.Sockaddr, fd int) (l2tp.TunnelDataPlane, error) {
@@ -38,6 +41,7 @@ func (dpf *vpnDataPlane) NewSession(tid, ptid l2tp.ControlConnID, scfg *l2tp.Ses
 	// TODO get session config, e.g. MTU, MRU, etc.
 	fd := dpf.vpnService.GetVpnFd()
 	session := &vpnSessionDataPlane{vpnFd: fd, tunnelFd: dpf.tunnelFd, tid: tid, ptid: ptid, isDown: false}
+	session.logger = dpf.logger
 	go session.start()
 	return session, nil
 }
@@ -56,6 +60,12 @@ func (sdp *vpnSessionDataPlane) start() {
 	limitSize := 1500 - len(headerBytes)
 	for !sdp.isDown {
 		n, _, err := unix.Recvfrom(sdp.vpnFd, buffer, unix.MSG_NOSIGNAL)
+		if sdp.logger != nil {
+			sdp.logger.Log(
+				"message", "recv from vpn fd",
+				"len", n,
+				"err", err)
+		}
 		if err == unix.EAGAIN || err == unix.EWOULDBLOCK || n > limitSize {
 			// skip over size limit packets
 			continue
@@ -84,12 +94,19 @@ func (sdp *vpnSessionDataPlane) Down() error {
 
 func (sdp *vpnSessionDataPlane) HandleDataPacket(data []byte) error {
 	_, err := unix.Write(sdp.vpnFd, data)
+	if sdp.logger != nil {
+		sdp.logger.Log(
+			"message", "write to vpn fd",
+			"len", len(data),
+			"err", err)
+	}
 	return err
 }
 
-func newVpnDataPlane(vpnService VpnService) (l2tp.DataPlane, error) {
+func newVpnDataPlane(vpnService VpnService, logger log.Logger) (l2tp.DataPlane, error) {
 	return &vpnDataPlane{
 		vpnService: vpnService,
+		logger:     logger,
 		tunnelFd:   -1,
 	}, nil
 }

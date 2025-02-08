@@ -41,7 +41,7 @@ func newApplication(cfg *config.Config, logWriter LogWriter, vpnService VpnServi
 	}
 
 	logger := log.NewLogfmtLogger(logWriter)
-	vpnDataPlane, err := newVpnDataPlane(vpnService)
+	vpnDataPlane, err := newVpnDataPlane(vpnService, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create vpn data plane: %v", err)
 	}
