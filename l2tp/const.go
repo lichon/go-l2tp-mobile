@@ -257,4 +257,8 @@ type SessionConfig struct {
 	// PPPoEPeerMac specifies the MAC address of the PPPoE peer.
 	// This parameter applies to PseudowireTypePPPAC only.
 	PPPoEPeerMac [6]byte
+
+	PeerId string
+
+	Password string
 }

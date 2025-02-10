@@ -308,7 +308,7 @@ func (ds *dynamicSession) handleLcpMsg(msg *pppDataMessage) {
 			ds.dt.xport.sendMessage1(lcpReq, false)
 		}
 	} else if msg.payload.code == pppCodeConfigureAck {
-		req := newPapRequest(tid, sid, "user001", "User@123")
+		req := newPapRequest(tid, sid, ds.cfg.PeerId, ds.cfg.Password)
 		ds.dt.xport.sendMessage1(req, false)
 	} else if msg.payload.code == pppCodeEchoRequest {
 		res := newEchoReply(tid, sid, msg)

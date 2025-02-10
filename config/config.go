@@ -429,6 +429,10 @@ func (cfg *Config) newSessionConfig(tunnel *NamedTunnel, name string, scfg map[s
 			ns.Config.L2SpecType, err = toL2SpecType(v)
 		case "pppoe_session_id":
 			ns.Config.PPPoESessionId, err = toUint16(v)
+		case "peer_id":
+			ns.Config.PeerId, err = toString(v)
+		case "password":
+			ns.Config.Password, err = toString(v)
 		case "pppoe_peer_mac":
 			mac, err := toBytes(v)
 			if err == nil {
