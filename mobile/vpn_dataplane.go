@@ -16,19 +16,20 @@ type vpnDataPlane struct {
 	logger     log.Logger
 	tunnelFd   int
 
-	activeSession vpnSessionDataPlane
+	activeSession *vpnSessionDataPlane
 }
 
 type vpnTunnelDataPlane struct {
 }
 
 type vpnSessionDataPlane struct {
-	vpnFd    int
-	tunnelFd int
-	psid     l2tp.ControlConnID
-	ptid     l2tp.ControlConnID
-	isDown   bool
-	logger   log.Logger
+	vpnService VpnService
+	vpnFd      int
+	tunnelFd   int
+	psid       l2tp.ControlConnID
+	ptid       l2tp.ControlConnID
+	isDown     bool
+	logger     log.Logger
 }
 
 func (dpf *vpnDataPlane) NewTunnel(tcfg *l2tp.TunnelConfig, sal, sap unix.Sockaddr, fd int) (l2tp.TunnelDataPlane, error) {
@@ -38,54 +39,64 @@ func (dpf *vpnDataPlane) NewTunnel(tcfg *l2tp.TunnelConfig, sal, sap unix.Sockad
 }
 
 func (dpf *vpnDataPlane) NewSession(tid, ptid l2tp.ControlConnID, scfg *l2tp.SessionConfig) (l2tp.SessionDataPlane, error) {
-	// TODO get session config, e.g. MTU, MRU, etc.
-	psid := scfg.PeerSessionID
-	fd := dpf.vpnService.GetVpnFd()
-	session := &vpnSessionDataPlane{vpnFd: fd, tunnelFd: dpf.tunnelFd, psid: psid, ptid: ptid, isDown: false}
-	session.logger = dpf.logger
+	session := &vpnSessionDataPlane{
+		vpnService: dpf.vpnService,
+		vpnFd:      -1,
+		tunnelFd:   dpf.tunnelFd,
+		psid:       scfg.PeerSessionID,
+		ptid:       ptid,
+		isDown:     false,
+		logger:     dpf.logger,
+	}
 	dpf.activeSession = session
-	go session.start()
 	return session, nil
 }
 
 func (dpf *vpnDataPlane) Close() {
-	if dfp.activeSession != nil
-		dfp.activeSession.Down()
+	if dpf.activeSession != nil {
+		dpf.activeSession.Down()
+	}
 }
 
 func (tdp *vpnTunnelDataPlane) Down() error {
 	return nil
 }
 
-func (sdp *vpnSessionDataPlane) start() {
+func (sdp *vpnSessionDataPlane) Start(ip []byte) error {
 	if err := unix.SetNonblock(sdp.vpnFd, true); err != nil {
 		if sdp.logger != nil {
 			sdp.logger.Log("message", "setNonblock failed", "err", err)
 		}
-		return
+		return err
 	}
+
+	// TODO add session config, e.g. MTU, MRU, etc.
+	sdp.vpnFd = sdp.vpnService.GetVpnFd(ip)
 	// session started
 	// start reading from vpn fd, and writing to tunnel fd
 	buffer := make([]byte, 4096)
 	pppHeader := l2tp.NewPPPDataHeader(sdp.ptid, sdp.psid, uint16(0x0021)) // ipv4
 	headerBytes := pppHeader.ToBytes()
 	limitSize := 1500 - len(headerBytes)
-	for !sdp.isDown {
-		n, err := unix.Read(sdp.vpnFd, buffer)
-		if err == unix.EAGAIN || err == unix.EWOULDBLOCK || n > limitSize {
-			// skip over size limit packets
-			continue
+	go func() {
+		for !sdp.isDown {
+			n, err := unix.Read(sdp.vpnFd, buffer)
+			if err == unix.EAGAIN || err == unix.EWOULDBLOCK || n > limitSize {
+				// skip over size limit packets
+				continue
+			}
+			if err != nil {
+				break
+			}
+			if err == nil && n > 0 {
+				unix.Write(sdp.tunnelFd, append(headerBytes, buffer[:n]...))
+			}
 		}
-		if err != nil {
-			break
+		if sdp.logger != nil {
+			sdp.logger.Log("message", "vpn session data plane exit")
 		}
-		if err == nil && n > 0 {
-			unix.Write(sdp.tunnelFd, append(headerBytes, buffer[:n]...))
-		}
-	}
-	if sdp.logger != nil {
-		sdp.logger.Log("message", "vpn session data plane exit")
-	}
+	}()
+	return nil
 }
 
 func (sdp *vpnSessionDataPlane) GetStatistics() (*l2tp.SessionDataPlaneStatistics, error) {
@@ -105,6 +116,9 @@ func (sdp *vpnSessionDataPlane) Down() error {
 }
 
 func (sdp *vpnSessionDataPlane) HandleDataPacket(data []byte) error {
+	if sdp.vpnFd == -1 {
+		return nil
+	}
 	_, err := unix.Write(sdp.vpnFd, data)
 	if sdp.logger != nil {
 		sdp.logger.Log(

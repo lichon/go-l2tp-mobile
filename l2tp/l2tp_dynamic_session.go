@@ -341,15 +341,19 @@ func (ds *dynamicSession) handleIpcpMsg(msg *pppDataMessage) {
 	} else if msg.payload.code == pppCodeConfigureNak {
 		opts := msg.payload.getOptions()
 		ip := []byte{0, 0, 0, 0}
+		foundIp := false
 		for _, opt := range opts {
 			if opt.type_ == pppIPCPOptionIPAddress {
 				ip = opt.value
+				foundIp = true
 				break
 			}
 		}
 		req := newIpcpRequest(tid, sid, ip)
 		ds.dt.xport.sendMessage1(req, false)
-		// get ip address from option
+		if foundIp {
+			ds.dp.Start(ip)
+		}
 	}
 }
 

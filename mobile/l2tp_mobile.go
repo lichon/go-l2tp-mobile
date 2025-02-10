@@ -27,7 +27,7 @@ type VpnService interface {
 	// See also: https://developer.android.com/reference/android/net/VpnService.html#protect(int)
 	Protect(fd int) bool
 
-	GetVpnFd() int
+	GetVpnFd(ip []byte) int
 
 	HandleEvent(name string, event string)
 }

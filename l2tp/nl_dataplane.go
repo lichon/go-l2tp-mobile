@@ -174,6 +174,10 @@ func (sdp *nlSessionDataPlane) HandleDataPacket(data []byte) error {
 	return nil
 }
 
+func (sdp *nlSessionDataPlane) Start(data []byte) error {
+	return nil
+}
+
 func newNetlinkDataPlane() (DataPlane, error) {
 
 	nlconn, err := nll2tp.Dial()

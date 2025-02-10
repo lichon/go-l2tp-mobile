@@ -47,3 +47,7 @@ func (tdp *nullSessionDataPlane) Down() error {
 func (sdp *nullSessionDataPlane) HandleDataPacket(data []byte) error {
 	return nil
 }
+
+func (sdp *nullSessionDataPlane) Start(data []byte) error {
+	return nil
+}

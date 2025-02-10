@@ -125,6 +125,9 @@ type SessionDataPlane interface {
 
 	// HandleDataPacket is called to pass a data packet to the session data plane.
 	HandleDataPacket([]byte) error
+
+	// Start session
+	Start([]byte) error
 }
 
 // EventHandler is an interface for receiving L2TP-specific events.
