@@ -63,6 +63,12 @@ func (tdp *vpnTunnelDataPlane) Down() error {
 }
 
 func (sdp *vpnSessionDataPlane) Start(ip []byte) error {
+	if sdp.logger != nil {
+		sdp.logger.Log("message", "starting vpn session", "ip", ip)
+	}
+
+	// TODO add session config, e.g. MTU, MRU, etc.
+	sdp.vpnFd = sdp.vpnService.GetVpnFd(ip)
 	if err := unix.SetNonblock(sdp.vpnFd, true); err != nil {
 		if sdp.logger != nil {
 			sdp.logger.Log("message", "setNonblock failed", "err", err)
@@ -70,8 +76,6 @@ func (sdp *vpnSessionDataPlane) Start(ip []byte) error {
 		return err
 	}
 
-	// TODO add session config, e.g. MTU, MRU, etc.
-	sdp.vpnFd = sdp.vpnService.GetVpnFd(ip)
 	// session started
 	// start reading from vpn fd, and writing to tunnel fd
 	buffer := make([]byte, 4096)
