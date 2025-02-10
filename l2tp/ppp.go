@@ -70,6 +70,9 @@ func (payload *pppPayload) getOptions() []pppOption {
 			type_:  b[0],
 			length: uint8(b[1]),
 		}
+		if opt.length <= 2 {
+			break
+		}
 		opt.value = b[2:opt.length]
 		opts = append(opts, opt)
 		b = b[opt.length:]
