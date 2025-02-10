@@ -291,6 +291,26 @@ func newTerminateReply(tid, sid ControlConnID, request *pppDataMessage) *pppData
 	}
 }
 
+func newTerminateRequest(tid, sid ControlConnID) *pppDataMessage {
+	resetLCPId()
+	return &pppDataMessage{
+		header: PPPDataHeader{
+			FlagsVer: 0x0002,
+			Tid:      uint16(tid),
+			Sid:      uint16(sid),
+			Address:  pppAddress,
+			Control:  pppControl,
+			Protocol: uint16(pppProtocolLCP),
+		},
+		payload: pppPayload{
+			code:       pppCodeTerminateRequest,
+			identifier: getLCPId(),
+			length:     4,
+			data:       nil,
+		},
+	}
+}
+
 type papRequest struct {
 	peerIdLength   uint8
 	peerId         string

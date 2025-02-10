@@ -375,6 +375,13 @@ func (ds *dynamicSession) handlePapMsg(msg *pppDataMessage) {
 	}
 }
 
+func (ds *dynamicSession) closeLcp() {
+	tid := ds.parent.getCfg().PeerTunnelID
+	sid := ds.cfg.PeerSessionID
+	req := newTerminateRequest(tid, sid)
+	ds.dt.xport.sendMessage1(req, false)
+}
+
 func (ds *dynamicSession) handleV2Msg(msg *v2ControlMessage) {
 
 	// It's possible to have a message mis-delivered on our control
@@ -575,6 +582,7 @@ func (ds *dynamicSession) fsmActClose(args []interface{}) {
 	}
 
 	if ds.established {
+		ds.closeLcp()
 		ds.established = false
 		ds.parent.handleUserEvent(&SessionDownEvent{
 			TunnelName:    ds.parent.getName(),
