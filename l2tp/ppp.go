@@ -485,6 +485,8 @@ func parsePPPBuffer(b []byte, p *pppPayload) (err error) {
 	p.code = b[0]
 	p.identifier = b[1]
 	p.length = binary.BigEndian.Uint16(b[2:4])
-	p.data = b[4:p.length]
+	if p.length > 4 {
+		p.data = b[4:p.length]
+	}
 	return nil
 }
