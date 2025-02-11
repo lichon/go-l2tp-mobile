@@ -79,7 +79,7 @@ func (cp *controlPlane) close() (err error) {
 		err = cp.file.Close()
 		cp.file = nil
 	} else {
-		unix.close(cp.fd)
+		unix.Close(cp.fd)
 	}
 	return
 }
