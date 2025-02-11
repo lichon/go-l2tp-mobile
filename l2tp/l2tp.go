@@ -15,7 +15,6 @@ import (
 // Context is a container for a collection of L2TP tunnels and
 // their sessions.
 type Context struct {
-	userMode      bool
 	logger        log.Logger
 	tunnelsByName map[string]tunnel
 	tunnelsByID   map[ControlConnID]tunnel
@@ -241,14 +240,6 @@ func NewContext(dataPlane DataPlane, logger log.Logger) (*Context, error) {
 		dp:            dp,
 		callSerial:    rand.Uint32(),
 	}, nil
-}
-
-func NewUserContext(dataPlane DataPlane, logger log.Logger) (*Context, error) {
-	ret, err := NewContext(dataPlane, logger)
-	if err == nil {
-		ret.userMode = true
-	}
-	return ret, err
 }
 
 // NewDynamicTunnel creates a new dynamic L2TP.
