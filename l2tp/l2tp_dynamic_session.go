@@ -220,13 +220,6 @@ func (ds *dynamicSession) handlePPP(msg *pppDataMessage) {
 }
 
 func (ds *dynamicSession) handlePPPMsg(msg *pppDataMessage) {
-	level.Debug(ds.logger).Log(
-		"message", "ppp data message",
-		"protocol", msg.header.Protocol,
-		"session_id", ds.cfg.SessionID,
-		"peer_session_id", ds.cfg.PeerSessionID,
-	)
-
 	if msg.Sid() != uint16(ds.cfg.SessionID) {
 		level.Error(ds.logger).Log(
 			"message", "received control message with the wrong SID",
@@ -269,6 +262,12 @@ func (ds *dynamicSession) handleLcpMsg(msg *pppDataMessage) {
 	sid := ds.cfg.PeerSessionID
 	supportedOpts := make([]pppOption, 0)
 	rejectOpts := make([]pppOption, 0)
+
+	level.Debug(ds.logger).Log(
+		"message", "received lcp message",
+		"code", msg.payload.code,
+		"opts len", len(msg.payload.getOptions()),
+	)
 
 	if msg.payload.code == pppCodeConfigureRequest {
 		supportMagicNumber := false
@@ -369,9 +368,9 @@ func (ds *dynamicSession) handlePapMsg(msg *pppDataMessage) {
 		// auth success
 		req := newIpcpRequest(tid, sid, nil)
 		ds.dt.xport.sendMessage1(req, false)
-	} else {
-		// TODO support pppCodeConfigureNak
+	} else if msg.payload.code == pppCodeConfigureAck {
 		// close session
+		ds.handleEvent("close", avpStopCCNResultCodeChannelNotAuthorized)
 	}
 }
 

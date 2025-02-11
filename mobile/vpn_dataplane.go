@@ -124,12 +124,6 @@ func (sdp *vpnSessionDataPlane) HandleDataPacket(data []byte) error {
 		return nil
 	}
 	_, err := unix.Write(sdp.vpnFd, data)
-	if sdp.logger != nil {
-		sdp.logger.Log(
-			"message", "write to vpn fd",
-			"len", len(data),
-			"err", err)
-	}
 	return err
 }
 
