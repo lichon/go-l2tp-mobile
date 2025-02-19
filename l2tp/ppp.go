@@ -479,7 +479,7 @@ func bytesToDataMsg(b []byte) (msg *pppDataMessage, err error) {
 }
 
 func parsePPPBuffer(b []byte, p *pppPayload) (err error) {
-	if len(b) <= pppPayloadHeaderLen {
+	if len(b) < pppPayloadHeaderLen {
 		return errors.New("no PPP present in the input buffer")
 	}
 	p.code = b[0]
