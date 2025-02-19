@@ -266,7 +266,6 @@ func (ds *dynamicSession) handleLcpMsg(msg *pppDataMessage) {
 	level.Debug(ds.logger).Log(
 		"message", "received lcp message",
 		"code", msg.payload.code,
-		"opts len", len(msg.payload.getOptions()),
 	)
 
 	if msg.payload.code == pppCodeConfigureRequest {
@@ -327,7 +326,6 @@ func (ds *dynamicSession) handleIpcpMsg(msg *pppDataMessage) {
 	level.Debug(ds.logger).Log(
 		"message", "received ipcp message",
 		"code", msg.payload.code,
-		"opts len", len(msg.payload.getOptions()),
 	)
 
 	if msg.payload.code == pppCodeConfigureRequest {
