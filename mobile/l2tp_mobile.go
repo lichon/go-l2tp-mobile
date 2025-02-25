@@ -94,16 +94,24 @@ func (app *application) stop() {
 func (app *application) HandleEvent(event interface{}) {
 	switch event.(type) {
 	case *l2tp.TunnelUpEvent:
-		app.vpnService.HandleEvent("TunnelUpEvent", "")
+		e := event.(*l2tp.TunnelUpEvent)
+		app.vpnService.HandleEvent("TunnelUpEvent", e.TunnelName)
 		break
 	case *l2tp.TunnelDownEvent:
-		app.vpnService.HandleEvent("TunnelDownEvent", "")
+		e := event.(*l2tp.TunnelDownEvent)
+		app.vpnService.HandleEvent("TunnelDownEvent", e.TunnelName)
 		break
 	case *l2tp.SessionUpEvent:
-		app.vpnService.HandleEvent("SessionUpEvent", "")
+		e := event.(*l2tp.SessionUpEvent)
+		app.vpnService.HandleEvent("SessionUpEvent", e.SessionName)
+		break
+	case *l2tp.SessionEchoEvent:
+		e := event.(*l2tp.SessionEchoEvent)
+		app.vpnService.HandleEvent("SessionEchoEvent", e.SessionName)
 		break
 	case *l2tp.SessionDownEvent:
-		app.vpnService.HandleEvent("SessionDownEvent", "")
+		e := event.(*l2tp.SessionDownEvent)
+		app.vpnService.HandleEvent("SessionDownEvent", e.SessionName)
 		break
 	}
 }

@@ -311,6 +311,14 @@ func (ds *dynamicSession) handleLcpMsg(msg *pppDataMessage) {
 	} else if msg.payload.code == pppCodeEchoRequest {
 		res := newEchoReply(tid, sid, msg)
 		ds.dt.xport.sendMessage1(res, false)
+		ds.parent.handleUserEvent(&SessionEchoEvent{
+			TunnelName:    ds.parent.getName(),
+			Tunnel:        ds.parent,
+			TunnelConfig:  ds.parent.getCfg(),
+			SessionName:   ds.getName(),
+			Session:       ds,
+			SessionConfig: ds.cfg,
+		})
 	} else if msg.payload.code == pppCodeTerminateRequest {
 		res := newTerminateReply(tid, sid, msg)
 		ds.dt.xport.sendMessage1(res, false)

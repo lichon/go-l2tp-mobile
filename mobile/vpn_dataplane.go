@@ -1,6 +1,7 @@
 package l2tpMobile
 
 import (
+	"errors"
 	"go-l2tp-mobile/l2tp"
 
 	"github.com/go-kit/log"
@@ -125,6 +126,13 @@ func (sdp *vpnSessionDataPlane) HandleDataPacket(data []byte) error {
 	}
 	_, err := unix.Write(sdp.vpnFd, data)
 	return err
+}
+
+func (sdp *vpnSessionDataPlane) PingByLcpEcho() error {
+	if sdp.vpnFd == -1 {
+		return errors.New("vpn fd is not ready")
+	}
+	return nil
 }
 
 func newVpnDataPlane(vpnService VpnService, logger log.Logger) (l2tp.DataPlane, error) {

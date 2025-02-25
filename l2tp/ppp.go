@@ -254,6 +254,27 @@ func newIpcpRequest(tid, sid ControlConnID, ipAddr []byte) *pppDataMessage {
 	return newPPPMessage(tid, sid, pppProtocolIPCP, pppCodeConfigureRequest, getLCPId(), opts)
 }
 
+func newEchoRequest(tid, sid ControlConnID) *pppDataMessage {
+	magicNum := make([]byte, 4)
+	binary.BigEndian.PutUint32(magicNum, pppLCPMagicNumber)
+	return &pppDataMessage{
+		header: PPPDataHeader{
+			FlagsVer: 0x0002,
+			Tid:      uint16(tid),
+			Sid:      uint16(sid),
+			Address:  pppAddress,
+			Control:  pppControl,
+			Protocol: uint16(pppProtocolLCP),
+		},
+		payload: pppPayload{
+			code:       pppCodeEchoRequest,
+			identifier: getLCPId(),
+			length:     8,
+			data:       magicNum,
+		},
+	}
+}
+
 func newEchoReply(tid, sid ControlConnID, request *pppDataMessage) *pppDataMessage {
 	magicNum := make([]byte, 4)
 	binary.BigEndian.PutUint32(magicNum, pppLCPMagicNumber)

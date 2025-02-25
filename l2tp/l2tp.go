@@ -166,6 +166,17 @@ type TunnelDownEvent struct {
 	LocalAddress, PeerAddress unix.Sockaddr
 }
 
+// SessionEchoEvent is passed to registered EventHandler instances when a session
+// receives an echo request.
+type SessionEchoEvent struct {
+	TunnelName    string
+	Tunnel        Tunnel
+	TunnelConfig  *TunnelConfig
+	SessionName   string
+	Session       Session
+	SessionConfig *SessionConfig
+}
+
 // SessionUpEvent is passed to registered EventHandler instances when a session
 // comes up.  In the case of static or quiescent sessions, this occurs immediately
 // on instantiation of the session.  For dynamic sessions, this occurs on the
