@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/katalix/go-l2tp/l2tp"
+	"go-l2tp-mobile/l2tp"
 )
 
 func TestGetTunnels(t *testing.T) {
